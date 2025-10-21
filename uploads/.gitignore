@@ -1,0 +1,5 @@
+# Ignore tất cả file trong thư mục uploads
+*
+# Nhưng giữ file .gitignore này
+!.gitignore
+
