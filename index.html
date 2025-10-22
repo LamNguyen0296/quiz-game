@@ -268,12 +268,14 @@
             position: fixed;
             top: 20px;
             right: 20px;
-            padding: 10px 20px;
-            border-radius: 20px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
             z-index: 999;
+            min-width: 180px;
+            text-align: center;
         }
 
         .connection-status.connected {
@@ -284,6 +286,39 @@
         .connection-status.disconnected {
             background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
             color: white;
+        }
+
+        /* Score display trong connection status */
+        .score-highlight {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.3);
+            padding: 4px 12px;
+            border-radius: 12px;
+            margin-left: 8px;
+            font-size: 1.2rem;
+            font-weight: 800;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+        }
+
+        /* Animation khi điểm thay đổi */
+        @keyframes scoreChange {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); background: #ffff00; }
+            100% { transform: scale(1); }
+        }
+
+        .score-updated {
+            animation: scoreChange 0.6s ease-in-out;
+        }
+
+        /* Pulse animation cho điểm lớn */
+        @keyframes scorePulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); color: #ff0000; }
+        }
+
+        .score-pulse {
+            animation: scorePulse 0.8s ease-in-out;
         }
 
         .room-code {
@@ -580,11 +615,25 @@
                 👑 <span id="lobbyHostName">---</span>
             </div>
 
+            <!-- Hiển thị điểm của member (chỉ member thấy) -->
+            <div id="myScoreDisplay" style="display: none; text-align: center; margin: 20px auto; padding: 20px; background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%); border-radius: 15px; max-width: 400px; box-shadow: 0 8px 25px rgba(255, 215, 0, 0.5); border: 3px solid #ffa500;">
+                <div style="font-size: 1rem; font-weight: 600; color: #333; margin-bottom: 8px;">
+                    🎯 ĐIỂM CỦA BẠN
+                </div>
+                <div style="font-size: 3rem; font-weight: 900; color: #ff6b00; text-shadow: 2px 2px 4px rgba(0,0,0,0.2);" id="myScoreValue">
+                    0
+                </div>
+                <div style="font-size: 0.9rem; color: #666; margin-top: 5px;">
+                    điểm
+                </div>
+            </div>
+
             <h1>Phòng chờ</h1>
             <div id="lobbyPlayers" style="margin: 20px 0;"></div>
 
             <div id="hostControls" style="text-align: center; display: none;">
                 <button class="btn btn-success" onclick="startQuiz()" id="startQuizBtn">🚀 Bắt đầu Quiz</button>
+                <button class="btn" onclick="openEvaluation()" id="evaluationBtn" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">⭐ Đánh giá</button>
             </div>
 
             <div style="text-align: center; margin-top: 20px;">
@@ -628,6 +677,76 @@
                 <button class="btn btn-danger" onclick="leaveRoom()">Rời phòng</button>
             </div>
         </div>
+
+        <!-- Evaluation Setup Screen (Host only) -->
+        <div id="evaluationSetupScreen" class="screen">
+            <h1>⚙️ Cài đặt tiêu chí đánh giá</h1>
+            
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 20px 0;">
+                <h3 style="color: #667eea;">📊 Tiêu chí đánh giá của Host (5 tiêu chí)</h3>
+                <div id="hostCriteriaList"></div>
+                <button class="btn" onclick="addHostCriteria()" style="margin-top: 10px;">➕ Thêm tiêu chí</button>
+            </div>
+
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 20px 0;">
+                <h3 style="color: #667eea;">👥 Tiêu chí đánh giá của Members (4 tiêu chí)</h3>
+                <div id="memberCriteriaList"></div>
+                <button class="btn" onclick="addMemberCriteria()" style="margin-top: 10px;">➕ Thêm tiêu chí</button>
+            </div>
+
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 20px 0;">
+                <h3 style="color: #667eea;">⭐ Cấp độ đánh giá (5 cấp độ)</h3>
+                <div id="ratingLevelsList"></div>
+            </div>
+
+            <div style="text-align: center; margin-top: 30px;">
+                <button class="btn btn-success" onclick="saveEvaluationSetup()">💾 Lưu cài đặt</button>
+                <button class="btn" onclick="startEvaluation()">▶️ Bắt đầu đánh giá</button>
+                <button class="btn btn-danger" onclick="backToLobby()">Quay lại</button>
+            </div>
+        </div>
+
+        <!-- Host Evaluation Screen -->
+        <div id="hostEvaluationScreen" class="screen">
+            <h1>⭐ Host đánh giá Members</h1>
+            
+            <div id="hostEvaluationForm"></div>
+
+            <div style="text-align: center; margin-top: 30px;">
+                <button class="btn btn-success" onclick="submitHostEvaluation()">✅ Hoàn thành đánh giá</button>
+                <button class="btn btn-danger" onclick="backToLobby()">Quay lại</button>
+            </div>
+        </div>
+
+        <!-- Member Evaluation Screen -->
+        <div id="memberEvaluationScreen" class="screen">
+            <h1>⭐ Đánh giá đồng đội</h1>
+            
+            <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <p style="margin: 0; color: #2e7d32; font-weight: 600;">
+                    💡 Hãy đánh giá các thành viên khác một cách khách quan và công bằng
+                </p>
+            </div>
+
+            <div id="memberEvaluationForm"></div>
+
+            <div style="text-align: center; margin-top: 30px;">
+                <button class="btn btn-success" onclick="submitMemberEvaluation()">✅ Gửi đánh giá</button>
+                <button class="btn btn-danger" onclick="backToLobby()">Quay lại</button>
+            </div>
+        </div>
+
+        <!-- Evaluation Results Screen -->
+        <div id="evaluationResultsScreen" class="screen">
+            <h1>📊 Kết quả đánh giá</h1>
+            
+            <div id="evaluationResultsContent"></div>
+
+            <div style="text-align: center; margin-top: 30px;">
+                <button class="btn" onclick="backToLobby()">Quay lại phòng chờ</button>
+                <button class="btn btn-success" onclick="exportEvaluationResults()">📥 Xuất kết quả</button>
+            </div>
+        </div>
     </div>
 
     <!-- Detail Modal -->
@@ -657,6 +776,18 @@
         let uploadedMediaFiles = {}; // Lưu media files đã upload theo index câu hỏi
         let selectedAnswer = null; // Đáp án đã chọn (chưa nộp)
         let hasSubmitted = false; // Đã nộp bài chưa
+        let currentPlayerScore = 0; // Điểm của người chơi hiện tại
+        
+        // Evaluation system
+        let evaluationSetup = {
+            hostCriteria: [],      // 5 tiêu chí của host
+            memberCriteria: [],    // 4 tiêu chí của members
+            ratingLevels: []       // 4 cấp độ đánh giá
+        };
+        let hostEvaluations = {};      // Đánh giá của host cho members
+        let memberEvaluations = {};    // Đánh giá của members cho nhau
+        let evaluationResults = null;  // Kết quả tổng hợp
+        let evaluationLoaded = false;  // Đã load tiêu chí chưa
 
         // Connection events
         socket.on('connect', () => {
@@ -670,7 +801,16 @@
         function updateConnectionStatus(connected) {
             const status = document.getElementById('connectionStatus');
             status.className = 'connection-status ' + (connected ? 'connected' : 'disconnected');
-            status.textContent = connected ? '● Đã kết nối' : '● Mất kết nối';
+            
+            // Hiển thị điểm nếu không phải host và đã vào phòng
+            if (connected && !isHost && currentRoom) {
+                status.innerHTML = `
+                    ● Đã kết nối
+                    <span class="score-highlight">🏆 ${currentPlayerScore}</span>
+                `;
+            } else {
+                status.textContent = connected ? '● Đã kết nối' : '● Mất kết nối';
+            }
         }
 
         // Function hiển thị tên host
@@ -812,6 +952,22 @@
                 document.getElementById('lobbyHostName').textContent = host.name;
             }
             
+            // Cập nhật điểm của người chơi hiện tại
+            if (!isHost && currentPlayer) {
+                const currentPlayerData = data.players.find(p => p.name === currentPlayer);
+                if (currentPlayerData) {
+                    currentPlayerScore = currentPlayerData.score || 0;
+                    updateConnectionStatus(true);
+                    
+                    // Hiển thị thông báo nếu có điểm đã lưu
+                    if (data.savedScore && data.savedScore > 0) {
+                        setTimeout(() => {
+                            alert(`🎯 Chào mừng trở lại!\nĐiểm số của bạn: ${data.savedScore} điểm`);
+                        }, 500);
+                    }
+                }
+            }
+            
             document.getElementById('lobbyRoomCode').textContent = currentRoom;
             showScreen('lobbyScreen');
             updateLobbyPlayers(data.players);
@@ -828,6 +984,15 @@
         socket.on('players-list', (data) => {
             updateLobbyPlayers(data.players);
             
+            // Cập nhật điểm của người chơi hiện tại
+            if (!isHost && currentPlayer) {
+                const currentPlayerData = data.players.find(p => p.name === currentPlayer);
+                if (currentPlayerData) {
+                    currentPlayerScore = currentPlayerData.score || 0;
+                    updateConnectionStatus(true);
+                }
+            }
+            
             // Cập nhật tên host nếu chưa có
             if (!hostName) {
                 const host = data.players.find(p => p.isHost);
@@ -840,6 +1005,15 @@
 
         socket.on('player-joined', (data) => {
             updateLobbyPlayers(data.players);
+            
+            // Cập nhật điểm của người chơi hiện tại
+            if (!isHost && currentPlayer) {
+                const currentPlayerData = data.players.find(p => p.name === currentPlayer);
+                if (currentPlayerData) {
+                    currentPlayerScore = currentPlayerData.score || 0;
+                    updateConnectionStatus(true);
+                }
+            }
             
             // Cập nhật tên host nếu chưa có
             if (!hostName) {
@@ -861,16 +1035,68 @@
             const playersOnly = players.filter(p => !p.isHost);
             list.innerHTML = '<h3 style="color: #667eea; margin-bottom: 15px;">Người chơi (' + playersOnly.length + ')</h3>';
             playersOnly.forEach(p => {
-                list.innerHTML += `<div style="background: #f8f9fa; padding: 10px; margin-bottom: 5px; border-radius: 6px;">
-                    ${p.name}
+                const score = p.score || 0;
+                const editButton = isHost ? `<button onclick="editPlayerScore('${p.id}', '${p.name}', ${score})" style="background: #ffa500; color: white; border: none; padding: 6px 12px; border-radius: 6px; margin-left: 10px; cursor: pointer; font-size: 0.9rem; font-weight: 600; box-shadow: 0 2px 8px rgba(255,165,0,0.3);">✏️ Sửa</button>` : '';
+                
+                // Highlight màu vàng nếu là current player
+                const isCurrentPlayer = !isHost && p.name === currentPlayer;
+                const highlightBorder = isCurrentPlayer ? 'border: 3px solid #ffd700; box-shadow: 0 4px 15px rgba(255,215,0,0.4);' : '';
+                
+                // Cập nhật currentPlayerScore nếu là người chơi hiện tại
+                if (isCurrentPlayer) {
+                    currentPlayerScore = score;
+                }
+                
+                list.innerHTML += `<div style="background: ${isCurrentPlayer ? '#fffef0' : '#f8f9fa'}; padding: 12px 18px; margin-bottom: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; ${highlightBorder}">
+                    <span style="font-weight: 600; font-size: 1.1rem; color: #333;">
+                        ${isCurrentPlayer ? '👤 ' : ''}${p.name}
+                    </span>
+                    <div style="display: flex; align-items: center;">
+                        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 10px 20px; border-radius: 16px; font-weight: 700; font-size: 1.3rem; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); min-width: 100px; text-align: center;">
+                            🏆 ${score}
+                        </div>
+                        ${editButton}
+                    </div>
                 </div>`;
             });
+            
+            // Cập nhật box điểm lớn của member
+            updateMyScoreDisplay();
+        }
+        
+        // Cập nhật hiển thị điểm lớn của member
+        function updateMyScoreDisplay(animated = false) {
+            const myScoreBox = document.getElementById('myScoreDisplay');
+            const myScoreValue = document.getElementById('myScoreValue');
+            
+            if (!isHost && currentRoom && currentPlayerScore !== undefined) {
+                myScoreBox.style.display = 'block';
+                
+                // Lưu điểm cũ để so sánh
+                const oldScore = parseInt(myScoreValue.textContent) || 0;
+                const newScore = currentPlayerScore;
+                
+                myScoreValue.textContent = newScore;
+                
+                // Thêm animation nếu điểm thay đổi
+                if (animated && oldScore !== newScore) {
+                    myScoreValue.classList.remove('score-pulse');
+                    void myScoreValue.offsetWidth; // Trigger reflow
+                    myScoreValue.classList.add('score-pulse');
+                    
+                    setTimeout(() => {
+                        myScoreValue.classList.remove('score-pulse');
+                    }, 800);
+                }
+            } else {
+                myScoreBox.style.display = 'none';
+            }
         }
 
         // Quiz creation (Host only)
         function addQuestion() {
             if (questions.length >= 10) {
-                alert('Tối đa 10 câu hỏi!');
+                console.log('Tối đa 10 câu hỏi!');
                 return;
             }
 
@@ -1278,6 +1504,17 @@
             clearInterval(timerInterval);
             console.log('Quiz ended, results:', data.results);
             console.log('Total players in results:', data.results.length);
+            
+            // Cập nhật điểm của người chơi hiện tại
+            if (!isHost && currentPlayer) {
+                const myResult = data.results.find(r => r.playerName === currentPlayer);
+                if (myResult) {
+                    currentPlayerScore = myResult.score || 0;
+                    updateConnectionStatus(true);
+                    updateMyScoreDisplay(true); // Thêm animation
+                }
+            }
+            
             showScreen('resultsScreen');
             displayResults(data.results);
         });
@@ -1394,6 +1631,59 @@
             socket.emit('get-players');
         }
 
+        // Chức năng edit điểm của member (chỉ host)
+        function editPlayerScore(playerId, playerName, currentScore) {
+            if (!isHost) {
+                alert('Chỉ host mới có thể sửa điểm!');
+                return;
+            }
+
+            const newScore = prompt(`Nhập điểm mới cho ${playerName}:\n(Điểm hiện tại: ${currentScore})`, currentScore);
+            
+            if (newScore === null) {
+                return; // User cancelled
+            }
+
+            const score = parseInt(newScore, 10);
+            
+            if (isNaN(score) || score < 0) {
+                alert('Điểm không hợp lệ! Vui lòng nhập số >= 0');
+                return;
+            }
+
+            // Gửi yêu cầu cập nhật điểm
+            socket.emit('update-player-score', {
+                playerId: playerId,
+                newScore: score
+            });
+        }
+
+        // Nhận thông báo khi điểm được cập nhật thành công
+        socket.on('score-update-success', (data) => {
+            console.log('Score updated:', data.message);
+            // Có thể hiển thị notification nhẹ nhàng hơn
+        });
+
+        // Nhận cập nhật điểm realtime
+        socket.on('player-score-updated', (data) => {
+            console.log(`${data.playerName} score updated to ${data.newScore}`);
+            
+            // Cập nhật điểm của người chơi hiện tại (nếu là người bị sửa điểm)
+            if (!isHost && currentPlayer === data.playerName) {
+                currentPlayerScore = data.newScore;
+                updateConnectionStatus(true);
+                updateMyScoreDisplay(true); // Thêm animation
+                
+                // Hiển thị thông báo cho người chơi
+                setTimeout(() => {
+                    alert(`⚡ Host đã cập nhật điểm của bạn: ${data.newScore} điểm`);
+                }, 300);
+            }
+            
+            // Cập nhật danh sách người chơi
+            updateLobbyPlayers(data.players);
+        });
+
         function showScreen(screenId) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             document.getElementById(screenId).classList.add('active');
@@ -1402,6 +1692,631 @@
         // Auto uppercase room code
         document.getElementById('roomCodeInput').addEventListener('input', (e) => {
             e.target.value = e.target.value.toUpperCase();
+        });
+
+        // ============ EVALUATION SYSTEM ============
+
+        // Load tiêu chí từ file JSON
+        async function loadEvaluationCriteria() {
+            try {
+                const response = await fetch('/evaluation-criteria.json');
+                const data = await response.json();
+                
+                evaluationSetup = {
+                    hostCriteria: data.hostCriteria || [],
+                    memberCriteria: data.memberCriteria || [],
+                    ratingLevels: data.ratingLevels || []
+                };
+                
+                evaluationLoaded = true;
+                console.log('✅ Đã load tiêu chí đánh giá từ JSON');
+                return true;
+            } catch (error) {
+                console.error('❌ Lỗi load tiêu chí:', error);
+                // Fallback to default
+                initializeDefaultEvaluation();
+                return false;
+            }
+        }
+
+        // Khởi tạo mặc định (fallback)
+        function initializeDefaultEvaluation() {
+            evaluationSetup = {
+                hostCriteria: [
+                    { id: 1, name: 'Ý tưởng & sáng tạo', weight: 20, maxScore: 8 },
+                    { id: 2, name: 'Kiến thức về Ai Cập cổ đại', weight: 25, maxScore: 10 },
+                    { id: 3, name: 'Ứng dụng STEM', weight: 25, maxScore: 10 },
+                    { id: 4, name: 'Hình thức & sản phẩm', weight: 15, maxScore: 6 },
+                    { id: 5, name: 'Làm việc nhóm & thuyết trình', weight: 15, maxScore: 6 }
+                ],
+                memberCriteria: [
+                    { id: 1, name: 'Hỗ trợ đồng đội', weight: 25, maxScore: 10 },
+                    { id: 2, name: 'Chia sẻ kiến thức', weight: 25, maxScore: 10 },
+                    { id: 3, name: 'Thái độ làm việc', weight: 25, maxScore: 10 },
+                    { id: 4, name: 'Đóng góp ý kiến', weight: 25, maxScore: 10 }
+                ],
+                ratingLevels: [
+                    { id: 1, name: 'Xuất sắc', emoji: '😍' },
+                    { id: 2, name: 'Tốt', emoji: '😊' },
+                    { id: 3, name: 'Đạt', emoji: '😐' },
+                    { id: 4, name: 'Cần cố gắng', emoji: '😔' }
+                ]
+            };
+            evaluationLoaded = true;
+        }
+
+        // Mở màn hình đánh giá
+        async function openEvaluation() {
+            if (!isHost) {
+                console.log('Chỉ host mới có thể mở cài đặt đánh giá!');
+                return;
+            }
+
+            // Load tiêu chí từ JSON nếu chưa load
+            if (!evaluationLoaded) {
+                await loadEvaluationCriteria();
+            }
+
+            renderEvaluationSetup();
+            showScreen('evaluationSetupScreen');
+        }
+
+        // Render UI setup đánh giá
+        function renderEvaluationSetup() {
+            // Render host criteria với thông tin chi tiết
+            const hostList = document.getElementById('hostCriteriaList');
+            hostList.innerHTML = evaluationSetup.hostCriteria.map((c, idx) => `
+                <div style="background: white; padding: 15px; margin: 8px 0; border-radius: 8px; border-left: 4px solid #667eea;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <input type="text" value="${c.name}" onchange="updateHostCriteria(${idx}, this.value)" 
+                               style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem; font-weight: 600;">
+                        <button onclick="removeHostCriteria(${idx})" style="background: #f44336; color: white; border: none; padding: 8px 12px; border-radius: 4px; margin-left: 10px; cursor: pointer;">🗑️</button>
+                    </div>
+                    <div style="display: flex; gap: 15px; font-size: 0.9rem; color: #666;">
+                        <span>📊 Trọng số: ${c.weight || 0}%</span>
+                        <span>🎯 Điểm tối đa: ${c.maxScore || 0}</span>
+                        ${c.description ? `<span>📝 ${c.description}</span>` : ''}
+                    </div>
+                </div>
+            `).join('');
+
+            // Render member criteria với thông tin chi tiết
+            const memberList = document.getElementById('memberCriteriaList');
+            memberList.innerHTML = evaluationSetup.memberCriteria.map((c, idx) => `
+                <div style="background: white; padding: 15px; margin: 8px 0; border-radius: 8px; border-left: 4px solid #f093fb;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <input type="text" value="${c.name}" onchange="updateMemberCriteria(${idx}, this.value)" 
+                               style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem; font-weight: 600;">
+                        <button onclick="removeMemberCriteria(${idx})" style="background: #f44336; color: white; border: none; padding: 8px 12px; border-radius: 4px; margin-left: 10px; cursor: pointer;">🗑️</button>
+                    </div>
+                    <div style="display: flex; gap: 15px; font-size: 0.9rem; color: #666;">
+                        <span>📊 Trọng số: ${c.weight || 0}%</span>
+                        <span>🎯 Điểm tối đa: ${c.maxScore || 0}</span>
+                        ${c.description ? `<span>📝 ${c.description}</span>` : ''}
+                    </div>
+                </div>
+            `).join('');
+
+            // Render rating levels với emoji (không có điểm)
+            const levelsList = document.getElementById('ratingLevelsList');
+            levelsList.innerHTML = evaluationSetup.ratingLevels.map((l, idx) => `
+                <div style="background: white; padding: 15px; margin: 8px 0; border-radius: 8px; border-left: 4px solid #ffd700;">
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <span style="font-size: 1.5rem;">${l.emoji || '⭐'}</span>
+                        <input type="text" value="${l.name}" onchange="updateRatingLevel(${idx}, 'name', this.value)" 
+                               placeholder="Tên cấp độ" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-weight: 600;">
+                    </div>
+                    ${l.description ? `<div style="font-size: 0.8rem; color: #888; margin-top: 5px;">${l.description}</div>` : ''}
+                </div>
+            `).join('');
+        }
+
+        // Thêm tiêu chí host
+        function addHostCriteria() {
+            if (evaluationSetup.hostCriteria.length >= 5) {
+                console.log('Tối đa 5 tiêu chí cho host!');
+                return;
+            }
+            const newId = evaluationSetup.hostCriteria.length + 1;
+            evaluationSetup.hostCriteria.push({ id: newId, name: 'Tiêu chí mới' });
+            renderEvaluationSetup();
+        }
+
+        // Thêm tiêu chí member
+        function addMemberCriteria() {
+            if (evaluationSetup.memberCriteria.length >= 4) {
+                console.log('Tối đa 4 tiêu chí cho members!');
+                return;
+            }
+            const newId = evaluationSetup.memberCriteria.length + 1;
+            evaluationSetup.memberCriteria.push({ id: newId, name: 'Tiêu chí mới' });
+            renderEvaluationSetup();
+        }
+
+        // Update functions
+        function updateHostCriteria(idx, value) {
+            evaluationSetup.hostCriteria[idx].name = value;
+        }
+
+        function updateMemberCriteria(idx, value) {
+            evaluationSetup.memberCriteria[idx].name = value;
+        }
+
+        function updateRatingLevel(idx, field, value) {
+            evaluationSetup.ratingLevels[idx][field] = value;
+        }
+
+        function removeHostCriteria(idx) {
+            if (evaluationSetup.hostCriteria.length <= 1) {
+                console.log('Phải có ít nhất 1 tiêu chí!');
+                return;
+            }
+            evaluationSetup.hostCriteria.splice(idx, 1);
+            renderEvaluationSetup();
+        }
+
+        function removeMemberCriteria(idx) {
+            if (evaluationSetup.memberCriteria.length <= 1) {
+                console.log('Phải có ít nhất 1 tiêu chí!');
+                return;
+            }
+            evaluationSetup.memberCriteria.splice(idx, 1);
+            renderEvaluationSetup();
+        }
+
+        // Lưu cài đặt
+        function saveEvaluationSetup() {
+            // Emit to server để lưu
+            socket.emit('save-evaluation-setup', {
+                roomCode: currentRoom,
+                setup: evaluationSetup
+            });
+            console.log('✅ Đã lưu cài đặt đánh giá!');
+        }
+
+        // Bắt đầu đánh giá
+        function startEvaluation() {
+            if (!isHost) return;
+
+            // Kiểm tra có members không
+            const players = Array.from(document.querySelectorAll('#lobbyPlayers > div')).length;
+            if (players === 0) {
+                console.log('Cần có ít nhất 1 member để đánh giá!');
+                return;
+            }
+
+            // Gửi thông báo bắt đầu đánh giá đến tất cả members
+            socket.emit('start-evaluation', {
+                roomCode: currentRoom,
+                setup: evaluationSetup
+            });
+
+            // Host chuyển sang màn hình đánh giá
+            renderHostEvaluationForm();
+            showScreen('hostEvaluationScreen');
+        }
+
+        // Render form đánh giá của host
+        function renderHostEvaluationForm() {
+            const form = document.getElementById('hostEvaluationForm');
+            
+            form.innerHTML = `
+                <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <h3 style="color: #1976d2; margin: 0 0 10px 0;">📊 Đánh giá Members</h3>
+                    <p style="margin: 0; color: #666;">
+                        Đánh giá từng member theo các tiêu chí. Điểm đánh giá sẽ được <strong>cộng vào điểm quiz hiện tại</strong> của member.
+                    </p>
+                </div>
+                <div id="hostEvalMembers"></div>
+            `;
+
+            // Lấy danh sách players từ server
+            socket.emit('get-players');
+        }
+
+        // Render form đánh giá của member
+        function renderMemberEvaluationForm() {
+            const form = document.getElementById('memberEvaluationForm');
+            
+            form.innerHTML = `
+                <p style="text-align: center; color: #666; margin-bottom: 20px;">
+                    Đánh giá các thành viên khác (không bao gồm bạn)
+                </p>
+                <div id="memberEvalPeers"></div>
+            `;
+            
+            // Lấy danh sách players từ server
+            socket.emit('get-players');
+        }
+        
+        // Render member evaluation form với players data
+        function renderMemberEvaluationWithPlayers(players) {
+            const peersContainer = document.getElementById('memberEvalPeers');
+            if (!peersContainer) return;
+            
+            // Lọc ra members (không bao gồm host và chính mình)
+            const peers = players.filter(p => !p.isHost && p.name !== currentPlayer);
+            
+            if (peers.length === 0) {
+                peersContainer.innerHTML = '<p style="text-align: center; color: #999;">Không có thành viên nào để đánh giá</p>';
+                return;
+            }
+            
+            peersContainer.innerHTML = peers.map(peer => `
+                <div style="background: white; padding: 20px; margin-bottom: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #e0e0e0;">
+                        <h3 style="margin: 0; color: #1976d2;">👤 ${peer.name}</h3>
+                        <span style="background: #e3f2fd; padding: 5px 12px; border-radius: 20px; font-size: 0.9rem; color: #1976d2;">
+                            Điểm hiện tại: ${peer.score || 0}
+                        </span>
+                    </div>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 15px;">
+                        ${evaluationSetup.memberCriteria.map(criteria => `
+                            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                                <div style="margin-bottom: 10px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <strong style="color: #424242; font-size: 1rem;">${criteria.name}</strong>
+                                        <span style="background: #fff3e0; padding: 3px 10px; border-radius: 12px; font-size: 0.85rem; color: #f57c00;">
+                                            Tối đa: ${criteria.maxScore} điểm
+                                        </span>
+                                    </div>
+                                    ${criteria.description ? `<p style="margin: 5px 0; color: #666; font-size: 0.9rem;">${criteria.description}</p>` : ''}
+                                </div>
+                                
+                                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                    ${evaluationSetup.ratingLevels.map(level => `
+                                        <label style="display: flex; align-items: center; gap: 5px; padding: 8px 12px; border: 2px solid #ddd; border-radius: 20px; cursor: pointer; transition: all 0.3s; background: white;">
+                                            <input type="radio" name="peer_${peer.id}_criteria_${criteria.id}" 
+                                                   value="${level.id}" data-peer-eval data-peer-id="${peer.id}" 
+                                                   data-criteria-id="${criteria.id}"
+                                                   onchange="updateMemberEvaluationScore('${peer.id}', '${criteria.id}', ${level.id}, ${criteria.maxScore})"
+                                                   style="margin: 0;">
+                                            <span style="font-size: 1.2rem;">${level.emoji}</span>
+                                            <span style="font-weight: 600;">${level.name}</span>
+                                        </label>
+                                    `).join('')}
+                                </div>
+                                
+                                <div id="peer_score_${peer.id}_${criteria.id}" style="margin-top: 8px; font-weight: 600; color: #1976d2; font-size: 0.9rem;">
+                                    Chưa chọn
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    
+                    <div style="background: #fff3e0; padding: 10px; border-radius: 6px; margin-top: 15px; text-align: center;">
+                        <strong>Tổng điểm đánh giá: <span id="peer_total_eval_${peer.id}">0</span> / <span id="peer_max_eval_${peer.id}">${evaluationSetup.memberCriteria.reduce((sum, c) => sum + c.maxScore, 0)}</span></strong>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Update member evaluation score display
+        function updateMemberEvaluationScore(peerId, criteriaId, levelId, maxScore) {
+            const scoreElement = document.getElementById(`peer_score_${peerId}_${criteriaId}`);
+            if (scoreElement) {
+                // Công thức: số điểm = (maxScore/4) × id
+                const actualScore = (maxScore / 4) * levelId;
+                scoreElement.textContent = `Điểm: ${actualScore.toFixed(1)} / ${maxScore}`;
+            }
+            
+            // Update total score
+            updatePeerTotalEvaluationScore(peerId);
+        }
+        
+        // Update total evaluation score for a peer
+        function updatePeerTotalEvaluationScore(peerId) {
+            let totalScore = 0;
+            const maxTotal = evaluationSetup.memberCriteria.reduce((sum, c) => sum + c.maxScore, 0);
+            
+            evaluationSetup.memberCriteria.forEach(criteria => {
+                const selectedRadio = document.querySelector(`input[name="peer_${peerId}_criteria_${criteria.id}"]:checked`);
+                if (selectedRadio) {
+                    const levelId = parseInt(selectedRadio.value);
+                    const actualScore = (criteria.maxScore / 4) * levelId;
+                    totalScore += actualScore;
+                }
+            });
+            
+            const totalElement = document.getElementById(`peer_total_eval_${peerId}`);
+            const maxElement = document.getElementById(`peer_max_eval_${peerId}`);
+            
+            if (totalElement) totalElement.textContent = totalScore.toFixed(1);
+            if (maxElement) maxElement.textContent = maxTotal;
+        }
+
+        // Submit đánh giá của host
+        function submitHostEvaluation() {
+            // Thu thập tất cả đánh giá
+            const evaluations = {};
+            const evaluationScores = {}; // Điểm thực tế sẽ cộng vào
+            
+            // Thu thập đánh giá cho từng member
+            const memberIds = [...new Set(Array.from(document.querySelectorAll('[data-member-eval]')).map(elem => elem.dataset.memberId))];
+            
+            memberIds.forEach(memberId => {
+                evaluations[memberId] = {};
+                evaluationScores[memberId] = 0;
+                
+                // Thu thập đánh giá cho tất cả tiêu chí của member này
+                evaluationSetup.hostCriteria.forEach(criteria => {
+                    const selectedRadio = document.querySelector(`input[name="member_${memberId}_criteria_${criteria.id}"]:checked`);
+                    if (selectedRadio) {
+                        const levelId = parseInt(selectedRadio.value);
+                        evaluations[memberId][criteria.id] = levelId;
+                        
+                        // Cộng điểm theo công thức: (maxScore/4) × id
+                        const actualScore = (criteria.maxScore / 4) * levelId;
+                        evaluationScores[memberId] += actualScore;
+                    }
+                });
+            });
+
+            // Validate
+            const allFilled = Object.values(evaluations).every(memberEval => 
+                Object.keys(memberEval).length === evaluationSetup.hostCriteria.length
+            );
+
+            if (!allFilled) {
+                console.log('⚠️ Vui lòng đánh giá đầy đủ tất cả tiêu chí cho mỗi member!');
+                return;
+            }
+
+            hostEvaluations = evaluations;
+
+            // Gửi lên server với điểm đánh giá
+            socket.emit('submit-host-evaluation', {
+                roomCode: currentRoom,
+                evaluations: evaluations,
+                evaluationScores: evaluationScores
+            });
+
+            console.log('✅ Đã hoàn thành đánh giá! Điểm đánh giá sẽ được cộng vào điểm quiz của members.');
+            showScreen('lobbyScreen');
+        }
+
+        // Submit đánh giá của member
+        function submitMemberEvaluation() {
+            // Thu thập đánh giá
+            const evaluations = {};
+            
+            document.querySelectorAll('[data-peer-eval]').forEach(elem => {
+                const peerId = elem.dataset.peerId;
+                const criteriaId = elem.dataset.criteriaId;
+                const rating = parseInt(elem.value);
+                
+                if (!evaluations[peerId]) {
+                    evaluations[peerId] = {};
+                }
+                evaluations[peerId][criteriaId] = rating;
+            });
+
+            // Validate
+            const allFilled = Object.values(evaluations).every(peerEval => 
+                Object.keys(peerEval).length === evaluationSetup.memberCriteria.length
+            );
+
+            if (!allFilled) {
+                console.log('⚠️ Vui lòng đánh giá đầy đủ tất cả tiêu chí!');
+                return;
+            }
+
+            memberEvaluations[currentPlayer] = evaluations;
+
+            // Gửi lên server
+            socket.emit('submit-member-evaluation', {
+                roomCode: currentRoom,
+                evaluatorId: socket.id,
+                evaluations: evaluations
+            });
+
+            console.log('✅ Đã gửi đánh giá! Cảm ơn bạn!');
+            showScreen('lobbyScreen');
+        }
+
+        // Xuất kết quả
+        function exportEvaluationResults() {
+            if (!evaluationResults) {
+                console.log('Chưa có kết quả đánh giá!');
+                return;
+            }
+
+            // Tạo CSV content
+            let csv = 'Kết quả đánh giá\n\n';
+            csv += 'Member,Tiêu chí,Điểm trung bình,Đánh giá\n';
+            
+            // Export logic here
+            
+            // Download file
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `evaluation_results_${currentRoom}.csv`;
+            link.click();
+        }
+
+        // Socket events cho evaluation
+        socket.on('evaluation-started', (data) => {
+            evaluationSetup = data.setup;
+            
+            if (!isHost) {
+                // Member nhận thông báo bắt đầu đánh giá
+                renderMemberEvaluationForm();
+                showScreen('memberEvaluationScreen');
+            }
+        });
+
+        socket.on('evaluation-results', (data) => {
+            evaluationResults = data.results;
+            displayEvaluationResults(data.results);
+            showScreen('evaluationResultsScreen');
+        });
+
+        // Nhận thông báo điểm đánh giá đã được cộng
+        socket.on('evaluation-scores-added', (data) => {
+            console.log('🎯 Evaluation scores added:', data);
+            
+            // Cập nhật điểm cho người chơi hiện tại nếu cần
+            if (!isHost && currentPlayer) {
+                const updatedPlayer = data.updatedPlayers?.find(p => p.name === currentPlayer);
+                if (updatedPlayer) {
+                    currentPlayerScore = updatedPlayer.score;
+                    updateConnectionStatus(true);
+                    updateMyScoreDisplay(true); // Animation
+                }
+            }
+        });
+        
+        // Nhận thông báo điểm peer evaluation đã được cộng
+        socket.on('peer-evaluation-scores-added', (data) => {
+            console.log('🎯 Peer evaluation scores added:', data);
+            
+            // Cập nhật điểm cho người chơi hiện tại nếu cần
+            if (!isHost && currentPlayer) {
+                const updatedPlayer = data.updatedPlayers?.find(p => p.name === currentPlayer);
+                if (updatedPlayer) {
+                    currentPlayerScore = updatedPlayer.score;
+                    updateConnectionStatus(true);
+                    updateMyScoreDisplay(true); // Animation
+                }
+            }
+        });
+
+        function displayEvaluationResults(results) {
+            const content = document.getElementById('evaluationResultsContent');
+            
+            content.innerHTML = `
+                <div style="background: #f8f9fa; padding: 20px; border-radius: 10px;">
+                    <h3>📊 Tổng hợp kết quả</h3>
+                    <p>Kết quả đánh giá sẽ được hiển thị ở đây</p>
+                </div>
+            `;
+        }
+
+        // Render host evaluation form với players data
+        function renderHostEvaluationWithPlayers(players) {
+            const membersContainer = document.getElementById('hostEvalMembers');
+            if (!membersContainer) return;
+
+            // Lọc ra members (không bao gồm host)
+            const members = players.filter(p => !p.isHost);
+            
+            if (members.length === 0) {
+                membersContainer.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #666;">
+                        <h3>⚠️ Chưa có member nào</h3>
+                        <p>Vui lòng đợi members tham gia phòng trước khi đánh giá.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            membersContainer.innerHTML = members.map(member => {
+                const currentScore = member.score || 0;
+                return `
+                    <div style="background: white; border: 2px solid #e0e0e0; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h3 style="color: #333; margin: 0; display: flex; align-items: center; gap: 10px;">
+                                👤 ${member.name}
+                                <span style="background: #e3f2fd; color: #1976d2; padding: 4px 12px; border-radius: 20px; font-size: 0.9rem;">
+                                    Điểm hiện tại: ${currentScore}
+                                </span>
+                            </h3>
+                        </div>
+                        
+                        <div style="display: grid; gap: 15px;">
+                            ${evaluationSetup.hostCriteria.map(criteria => `
+                                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #667eea;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                        <h4 style="margin: 0; color: #333; font-size: 1rem;">${criteria.name}</h4>
+                                        <span style="background: #e8f5e9; color: #2e7d32; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem;">
+                                            Tối đa: ${criteria.maxScore} điểm
+                                        </span>
+                                    </div>
+                                    ${criteria.description ? `<p style="margin: 5px 0; color: #666; font-size: 0.9rem;">${criteria.description}</p>` : ''}
+                                    
+                                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                        ${evaluationSetup.ratingLevels.map(level => `
+                                            <label style="display: flex; align-items: center; gap: 5px; padding: 8px 12px; border: 2px solid #ddd; border-radius: 20px; cursor: pointer; transition: all 0.3s; background: white;">
+                                                <input type="radio" name="member_${member.id}_criteria_${criteria.id}" 
+                                                       value="${level.id}" data-member-eval data-member-id="${member.id}" 
+                                                       data-criteria-id="${criteria.id}" 
+                                                       onchange="updateEvaluationScore('${member.id}', '${criteria.id}', ${level.id}, ${criteria.maxScore})"
+                                                       style="margin: 0;">
+                                                <span style="font-size: 1.2rem;">${level.emoji}</span>
+                                                <span style="font-weight: 600;">${level.name}</span>
+                                            </label>
+                                        `).join('')}
+                                    </div>
+                                    
+                                    <div id="score_${member.id}_${criteria.id}" style="margin-top: 8px; font-weight: 600; color: #1976d2; font-size: 0.9rem;">
+                                        Chưa chọn
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        
+                        <div style="background: #fff3e0; padding: 10px; border-radius: 6px; margin-top: 15px; text-align: center;">
+                            <strong>Tổng điểm đánh giá: <span id="total_eval_${member.id}">0</span> / <span id="max_eval_${member.id}">${evaluationSetup.hostCriteria.reduce((sum, c) => sum + c.maxScore, 0)}</span></strong>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Update evaluation score display
+        function updateEvaluationScore(memberId, criteriaId, levelId, maxScore) {
+            const scoreElement = document.getElementById(`score_${memberId}_${criteriaId}`);
+            if (scoreElement) {
+                // Công thức: số điểm = (maxScore/4) × id
+                const actualScore = (maxScore / 4) * levelId;
+                scoreElement.textContent = `Điểm: ${actualScore.toFixed(1)} / ${maxScore}`;
+            }
+            
+            // Update total score
+            updateMemberTotalEvaluationScore(memberId);
+        }
+
+        // Update total evaluation score for a member
+        function updateMemberTotalEvaluationScore(memberId) {
+            let totalScore = 0;
+            const maxTotal = evaluationSetup.hostCriteria.reduce((sum, c) => sum + c.maxScore, 0);
+            
+            evaluationSetup.hostCriteria.forEach(criteria => {
+                const selectedRadio = document.querySelector(`input[name="member_${memberId}_criteria_${criteria.id}"]:checked`);
+                if (selectedRadio) {
+                    const levelId = parseInt(selectedRadio.value);
+                    const actualScore = (criteria.maxScore / 4) * levelId;
+                    totalScore += actualScore;
+                }
+            });
+            
+            const totalElement = document.getElementById(`total_eval_${memberId}`);
+            const maxElement = document.getElementById(`max_eval_${memberId}`);
+            
+            if (totalElement) totalElement.textContent = totalScore.toFixed(1);
+            if (maxElement) maxElement.textContent = maxTotal;
+        }
+
+        // Override players-list event để render evaluation form
+        const originalPlayersListHandler = socket.listeners('players-list')[0];
+        socket.off('players-list');
+        socket.on('players-list', (data) => {
+            // Call original handler
+            if (originalPlayersListHandler) {
+                originalPlayersListHandler(data);
+            }
+            
+            // If we're in evaluation mode, render evaluation form
+            if (document.getElementById('hostEvaluationScreen').classList.contains('active')) {
+                renderHostEvaluationWithPlayers(data.players);
+            }
+            
+            // If we're in member evaluation mode, render member evaluation form
+            if (document.getElementById('memberEvaluationScreen').classList.contains('active')) {
+                renderMemberEvaluationWithPlayers(data.players);
+            }
         });
     </script>
 </body>
