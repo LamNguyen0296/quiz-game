@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chi tiết Quiz & Đánh giá</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .tab {
+            flex: 1;
+            padding: 15px 20px;
+            text-align: center;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #666;
+            transition: all 0.3s;
+        }
+        
+        .tab.active {
+            background: white;
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .list-item {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .list-item:hover {
+            background: #e3f2fd;
+            border-color: #1976d2;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .list-item h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.3rem;
+        }
+        
+        .list-item .meta {
+            display: flex;
+            gap: 20px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .detail-view {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            margin-top: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .detail-header {
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .detail-header h2 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .detail-meta {
+            display: flex;
+            gap: 30px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .member-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 4px solid #1976d2;
+        }
+        
+        .member-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .member-name {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .member-score {
+            background: #1976d2;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+        
+        .criteria-section {
+            margin-bottom: 20px;
+        }
+        
+        .criteria-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+        
+        .criteria-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+        }
+        
+        .criteria-item {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        
+        .criteria-item h4 {
+            color: #333;
+            margin-bottom: 8px;
+        }
+        
+        .criteria-item .score {
+            color: #1976d2;
+            font-weight: 600;
+        }
+        
+        .back-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-bottom: 20px;
+        }
+        
+        .back-btn:hover {
+            background: #5a6fd8;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+        }
+        
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Chi tiết Quiz & Đánh giá</h1>
+            <p>Xem chi tiết kết quả quiz và đánh giá theo từng member</p>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('quiz')">📝 Chi tiết Quiz</button>
+            <button class="tab" onclick="showTab('evaluation')">⭐ Chi tiết Đánh giá</button>
+        </div>
+        
+        <div class="content">
+            <div id="quiz-tab" class="tab-content active">
+                <div id="quiz-list">
+                    <div class="loading">Đang tải danh sách quiz...</div>
+                </div>
+            </div>
+            
+            <div id="evaluation-tab" class="tab-content">
+                <div id="evaluation-list">
+                    <div class="loading">Đang tải danh sách đánh giá...</div>
+                </div>
+            </div>
+            
+            <div id="detail-view" class="detail-view" style="display: none;">
+                <button class="back-btn" onclick="goBack()">← Quay lại</button>
+                <div id="detail-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentTab = 'quiz';
+        let currentView = 'list';
+        
+        // Load data when page loads
+        window.onload = function() {
+            loadQuizDetails();
+        };
+        
+        function showTab(tab) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`[onclick="showTab('${tab}')"]`).classList.add('active');
+            
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.getElementById(`${tab}-tab`).classList.add('active');
+            
+            currentTab = tab;
+            
+            // Load data for the tab
+            if (tab === 'quiz') {
+                loadQuizDetails();
+            } else {
+                loadEvaluationDetails();
+            }
+        }
+        
+        async function loadQuizDetails() {
+            try {
+                const response = await fetch('/api/quiz-details');
+                const data = await response.json();
+                
+                const listContainer = document.getElementById('quiz-list');
+                if (data.length === 0) {
+                    listContainer.innerHTML = '<div class="error">Chưa có dữ liệu quiz nào</div>';
+                    return;
+                }
+                
+                listContainer.innerHTML = data.map(item => `
+                    <div class="list-item" onclick="showQuizDetail('${item.hostName}', '${item.roomCode}')">
+                        <h3>📝 ${item.hostName} - Phòng ${item.roomCode}</h3>
+                        <div class="meta">
+                            <span>📅 ${new Date(item.timestamp).toLocaleString('vi-VN')}</span>
+                            <span>❓ ${item.totalQuestions} câu hỏi</span>
+                            <span>👥 ${item.totalMembers} thành viên</span>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                document.getElementById('quiz-list').innerHTML = '<div class="error">Lỗi khi tải dữ liệu quiz</div>';
+            }
+        }
+        
+        async function loadEvaluationDetails() {
+            try {
+                const response = await fetch('/api/evaluation-details');
+                const data = await response.json();
+                
+                const listContainer = document.getElementById('evaluation-list');
+                if (data.length === 0) {
+                    listContainer.innerHTML = '<div class="error">Chưa có dữ liệu đánh giá nào</div>';
+                    return;
+                }
+                
+                listContainer.innerHTML = data.map(item => `
+                    <div class="list-item" onclick="showEvaluationDetail('${item.hostName}', '${item.roomCode}')">
+                        <h3>⭐ ${item.hostName} - Phòng ${item.roomCode}</h3>
+                        <div class="meta">
+                            <span>📅 ${new Date(item.timestamp).toLocaleString('vi-VN')}</span>
+                            <span>👥 ${item.totalMembers} thành viên</span>
+                            <span>👨‍🏫 ${item.totalEvaluators} người đánh giá</span>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                document.getElementById('evaluation-list').innerHTML = '<div class="error">Lỗi khi tải dữ liệu đánh giá</div>';
+            }
+        }
+        
+        async function showQuizDetail(hostName, roomCode) {
+            try {
+                const encodedHostName = encodeURIComponent(hostName);
+                const encodedRoomCode = encodeURIComponent(roomCode);
+                const response = await fetch(`/api/quiz-details/${encodedHostName}/${encodedRoomCode}`);
+                const data = await response.json();
+                
+                showDetailView();
+                
+                document.getElementById('detail-content').innerHTML = `
+                    <div class="detail-header">
+                        <h2>📝 Chi tiết Quiz: ${data.hostName} - Phòng ${data.roomCode}</h2>
+                        <div class="detail-meta">
+                            <span>📅 ${new Date(data.timestamp).toLocaleString('vi-VN')}</span>
+                            <span>❓ ${data.quiz.questions.length} câu hỏi</span>
+                            <span>👥 ${data.results.length} thành viên</span>
+                        </div>
+                    </div>
+                    
+                    <h3>📋 Danh sách câu hỏi</h3>
+                    ${data.quiz.questions.map((q, index) => `
+                        <div class="member-card">
+                            <h4>Câu ${q.questionNumber}: ${q.question}</h4>
+                            <p><strong>Đáp án đúng:</strong> ${q.options[q.correctAnswer]}</p>
+                            <p><strong>Thời gian:</strong> ${q.timeLimit} giây</p>
+                            ${q.mediaPath ? `<p><strong>Media:</strong> ${q.mediaPath}</p>` : ''}
+                        </div>
+                    `).join('')}
+                    
+                    <h3>🏆 Kết quả theo thành viên</h3>
+                    ${data.results.map(result => `
+                        <div class="member-card">
+                            <div class="member-header">
+                                <span class="member-name">👤 ${result.playerName}</span>
+                                <span class="member-score">${result.score} điểm</span>
+                            </div>
+                            <p><strong>Đúng:</strong> ${result.correctAnswers}/${result.totalQuestions} câu</p>
+                            <div class="criteria-section">
+                                <div class="criteria-title">📊 Chi tiết từng câu:</div>
+                                <div class="criteria-details">
+                                    ${result.details.map(detail => `
+                                        <div class="criteria-item">
+                                            <h4>Câu ${detail.questionNumber}</h4>
+                                            <p><strong>Trả lời:</strong> ${detail.answered ? detail.options[detail.playerAnswer] : 'Không trả lời'}</p>
+                                            <p><strong>Đúng/Sai:</strong> ${detail.isCorrect ? '✅ Đúng' : '❌ Sai'}</p>
+                                            <p class="score">Điểm: ${detail.pointsEarned}</p>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                `;
+            } catch (error) {
+                document.getElementById('detail-content').innerHTML = '<div class="error">Lỗi khi tải chi tiết quiz</div>';
+            }
+        }
+        
+        async function showEvaluationDetail(hostName, roomCode) {
+            try {
+                const encodedHostName = encodeURIComponent(hostName);
+                const encodedRoomCode = encodeURIComponent(roomCode);
+                const response = await fetch(`/api/evaluation-details/${encodedHostName}/${encodedRoomCode}`);
+                const data = await response.json();
+                
+                showDetailView();
+                
+                document.getElementById('detail-content').innerHTML = `
+                    <div class="detail-header">
+                        <h2>⭐ Chi tiết Đánh giá: ${data.hostName} - Phòng ${data.roomCode}</h2>
+                        <div class="detail-meta">
+                            <span>📅 ${new Date(data.timestamp).toLocaleString('vi-VN')}</span>
+                            <span>👥 ${data.summary.totalMembers} thành viên</span>
+                            <span>👨‍🏫 ${data.summary.totalEvaluators} người đánh giá</span>
+                        </div>
+                    </div>
+                    
+                    <h3>👥 Chi tiết đánh giá theo thành viên</h3>
+                    ${data.memberDetails.map(member => `
+                        <div class="member-card">
+                            <div class="member-header">
+                                <span class="member-name">👤 ${member.memberName}</span>
+                                <span class="member-score">${member.finalScore} điểm</span>
+                            </div>
+                            
+                            <div class="criteria-section">
+                                <div class="criteria-title">👨‍🏫 Đánh giá từ Host (${member.hostEvaluation.totalScore} điểm):</div>
+                                <div class="criteria-details">
+                                    ${member.hostEvaluation.details.map(detail => `
+                                        <div class="criteria-item">
+                                            <h4>${detail.criteriaName}</h4>
+                                            <p><strong>Mức độ:</strong> ${detail.levelEmoji} ${detail.levelName}</p>
+                                            <p class="score">Điểm: ${detail.score}/${detail.maxScore}</p>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                            
+                            <div class="criteria-section">
+                                <div class="criteria-title">👥 Đánh giá từ đồng đội (${member.peerAverageScore.toFixed(1)} điểm trung bình):</div>
+                                ${member.peerEvaluations.map(peer => `
+                                    <div style="margin-bottom: 15px;">
+                                        <h4>👤 ${peer.evaluatorName}</h4>
+                                        <div class="criteria-details">
+                                            ${peer.evaluations.map(detail => `
+                                                <div class="criteria-item">
+                                                    <h4>${detail.criteriaName}</h4>
+                                                    <p><strong>Mức độ:</strong> ${detail.levelEmoji} ${detail.levelName}</p>
+                                                    <p class="score">Điểm: ${detail.score}/${detail.maxScore}</p>
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            
+                            <div class="criteria-section">
+                                <div class="criteria-title">📊 Tổng kết:</div>
+                                <div class="criteria-details">
+                                    <div class="criteria-item">
+                                        <h4>Điểm Host</h4>
+                                        <p class="score">${member.summary.hostScore} điểm</p>
+                                    </div>
+                                    <div class="criteria-item">
+                                        <h4>Điểm đồng đội</h4>
+                                        <p class="score">${member.summary.peerAverageScore.toFixed(1)} điểm</p>
+                                    </div>
+                                    <div class="criteria-item">
+                                        <h4>Tổng đánh giá</h4>
+                                        <p class="score">${member.summary.totalEvaluationScore.toFixed(1)} điểm</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                `;
+            } catch (error) {
+                document.getElementById('detail-content').innerHTML = '<div class="error">Lỗi khi tải chi tiết đánh giá</div>';
+            }
+        }
+        
+        function showDetailView() {
+            document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+            document.getElementById('detail-view').style.display = 'block';
+            currentView = 'detail';
+        }
+        
+        function goBack() {
+            document.getElementById('detail-view').style.display = 'none';
+            document.getElementById(`${currentTab}-tab`).style.display = 'block';
+            currentView = 'list';
+        }
+    </script>
+</body>
+</html>

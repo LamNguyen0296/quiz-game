@@ -277,6 +277,9 @@ function endQuiz(room, roomCode) {
     const hostPlayer = room.players.find(p => p.isHost);
     if (hostPlayer) {
         saveScoresToFile(hostPlayer.name, roomCode, room.players);
+        
+        // Lưu chi tiết quiz
+        saveQuizDetails(hostPlayer.name, roomCode, room.quiz, results);
     }
 
     // Gửi kết quả
@@ -288,6 +291,98 @@ function endQuiz(room, roomCode) {
 }
 
 // HTTP API endpoints
+app.get('/api/quiz-details/:hostName/:roomCode', (req, res) => {
+    const { hostName, roomCode } = req.params;
+    try {
+        const safeHostName = sanitizeFileName(hostName);
+        const safeRoomCode = sanitizeFileName(roomCode);
+        const filePath = path.join(__dirname, 'quiz-details', `${safeHostName}-${safeRoomCode}-quiz-details.json`);
+        if (fs.existsSync(filePath)) {
+            const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            res.json(data);
+        } else {
+            res.status(404).json({ error: 'Quiz details not found' });
+        }
+    } catch (error) {
+        console.error('Error loading quiz details:', error);
+        res.status(500).json({ error: 'Error loading quiz details' });
+    }
+});
+
+app.get('/api/evaluation-details/:hostName/:roomCode', (req, res) => {
+    const { hostName, roomCode } = req.params;
+    try {
+        const safeHostName = sanitizeFileName(hostName);
+        const safeRoomCode = sanitizeFileName(roomCode);
+        const filePath = path.join(__dirname, 'evaluation-details', `${safeHostName}-${safeRoomCode}-evaluation-details.json`);
+        if (fs.existsSync(filePath)) {
+            const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            res.json(data);
+        } else {
+            res.status(404).json({ error: 'Evaluation details not found' });
+        }
+    } catch (error) {
+        console.error('Error loading evaluation details:', error);
+        res.status(500).json({ error: 'Error loading evaluation details' });
+    }
+});
+
+app.get('/api/quiz-details', (req, res) => {
+    try {
+        const detailsDir = path.join(__dirname, 'quiz-details');
+        if (!fs.existsSync(detailsDir)) {
+            return res.json([]);
+        }
+        
+        const files = fs.readdirSync(detailsDir).filter(f => f.endsWith('.json'));
+        const details = files.map(file => {
+            const filePath = path.join(detailsDir, file);
+            const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            return {
+                fileName: file,
+                hostName: data.hostName,
+                roomCode: data.roomCode,
+                timestamp: data.timestamp,
+                totalQuestions: data.quiz.questions.length,
+                totalMembers: data.results.length
+            };
+        });
+        
+        res.json(details);
+    } catch (error) {
+        console.error('Error listing quiz details:', error);
+        res.status(500).json({ error: 'Error listing quiz details' });
+    }
+});
+
+app.get('/api/evaluation-details', (req, res) => {
+    try {
+        const detailsDir = path.join(__dirname, 'evaluation-details');
+        if (!fs.existsSync(detailsDir)) {
+            return res.json([]);
+        }
+        
+        const files = fs.readdirSync(detailsDir).filter(f => f.endsWith('.json'));
+        const details = files.map(file => {
+            const filePath = path.join(detailsDir, file);
+            const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            return {
+                fileName: file,
+                hostName: data.hostName,
+                roomCode: data.roomCode,
+                timestamp: data.timestamp,
+                totalMembers: data.summary.totalMembers,
+                totalEvaluators: data.summary.totalEvaluators
+            };
+        });
+        
+        res.json(details);
+    } catch (error) {
+        console.error('Error listing evaluation details:', error);
+        res.status(500).json({ error: 'Error listing evaluation details' });
+    }
+});
+
 app.post('/api/check-quiz', (req, res) => {
     const { hostName } = req.body;
     if (!hostName) {
@@ -945,17 +1040,272 @@ io.on('connection', (socket) => {
 
     // Nhận đánh giá từ member
     socket.on('submit-member-evaluation', (data) => {
-        const { roomCode, evaluatorId, evaluations } = data;
+        const { roomCode, evaluatorId, evaluations, evaluationScores } = data;
         const room = rooms.get(roomCode);
         
         if (room) {
             room.evaluations.members[evaluatorId] = evaluations;
+            
+            console.log('📊 Member evaluation received:', evaluationScores);
+            
+            // CỘNG ĐIỂM ĐÁNH GIÁ TỪNG MEMBER VÀO ĐIỂM TÍCH LŨY NGAY LẬP TỨC
+            Object.keys(evaluationScores).forEach(peerId => {
+                const peer = room.players.find(p => p.id === peerId);
+                if (peer && !peer.isHost) {
+                    const currentScore = peer.score || 0;
+                    const memberEvaluationScore = evaluationScores[peerId];
+                    const newScore = currentScore + memberEvaluationScore;
+                    
+                    peer.score = newScore;
+                    
+                    console.log(`✅ Member evaluation score added for ${peer.name}: ${currentScore} + ${memberEvaluationScore} = ${newScore}`);
+                }
+            });
+            
+            // Lưu điểm mới vào file
+            const hostPlayer = room.players.find(p => p.isHost);
+            if (hostPlayer) {
+                saveScoresToFile(hostPlayer.name, roomCode, room.players);
+                console.log(`💾 Scores with member evaluation saved to file for ${hostPlayer.name}`);
+            }
+            
+            // Broadcast điểm mới đến tất cả clients
+            io.to(roomCode).emit('players-list', { players: room.players });
+            
+            // Broadcast thông báo cập nhật điểm
+            const evaluatorPlayer = room.players.find(p => p.id === evaluatorId);
+            io.to(roomCode).emit('member-evaluation-scores-added', {
+                message: `${evaluatorPlayer?.name || 'Member'} đã hoàn thành đánh giá! Điểm đã được cộng vào.`,
+                updatedPlayers: room.players.filter(p => !p.isHost && evaluationScores[p.id]),
+                evaluationScores: evaluationScores,
+                evaluatorName: evaluatorPlayer?.name || 'Member'
+            });
+            
+            console.log(`🎯 Member evaluation scores added immediately for room ${roomCode}`);
             
             // Kiểm tra xem tất cả đã đánh giá chưa
             checkEvaluationComplete(room, roomCode);
         }
     });
 });
+
+// ============ DETAILED RECORDING FUNCTIONS ============
+
+// Helper function để làm sạch tên file
+function sanitizeFileName(name) {
+    return name.replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-').toLowerCase();
+}
+
+// Lưu chi tiết quiz theo member
+function saveQuizDetails(hostName, roomCode, quizData, results) {
+    try {
+        const detailsDir = path.join(__dirname, 'quiz-details');
+        if (!fs.existsSync(detailsDir)) {
+            fs.mkdirSync(detailsDir, { recursive: true });
+        }
+        
+        const safeHostName = sanitizeFileName(hostName);
+        const safeRoomCode = sanitizeFileName(roomCode);
+        const fileName = `${safeHostName}-${safeRoomCode}-quiz-details.json`;
+        const filePath = path.join(detailsDir, fileName);
+        
+        const quizDetails = {
+            hostName: hostName,
+            roomCode: roomCode,
+            timestamp: new Date().toISOString(),
+            quiz: {
+                title: quizData.title,
+                questions: quizData.questions.map((q, index) => ({
+                    questionNumber: index + 1,
+                    question: q.question,
+                    options: q.options,
+                    correctAnswer: q.correctAnswer,
+                    timeLimit: q.timeLimit,
+                    mediaPath: q.mediaPath,
+                    mediaType: q.mediaType
+                }))
+            },
+            results: results.map(result => ({
+                playerName: result.playerName,
+                playerId: result.playerId,
+                totalQuestions: result.totalQuestions,
+                correctAnswers: result.correctAnswers,
+                score: result.score,
+                details: result.details.map(detail => ({
+                    questionNumber: detail.questionIndex + 1,
+                    question: detail.question,
+                    options: detail.options,
+                    correctAnswer: detail.correctAnswer,
+                    playerAnswer: detail.playerAnswer,
+                    isCorrect: detail.isCorrect,
+                    answered: detail.answered,
+                    pointsEarned: detail.pointsEarned
+                }))
+            }))
+        };
+        
+        fs.writeFileSync(filePath, JSON.stringify(quizDetails, null, 2));
+        console.log(`📊 Quiz details saved: ${filePath}`);
+        console.log(`   - Host: ${hostName} → ${safeHostName}`);
+        console.log(`   - Room: ${roomCode} → ${safeRoomCode}`);
+        console.log(`   - File: ${fileName}`);
+        return true;
+    } catch (error) {
+        console.error('Error saving quiz details:', error);
+        return false;
+    }
+}
+
+// Lưu chi tiết đánh giá theo member
+function saveEvaluationDetails(hostName, roomCode, evaluationSetup, evaluations, players) {
+    try {
+        console.log('💾 Saving evaluation details...');
+        console.log(`   - Host: ${hostName}`);
+        console.log(`   - Room: ${roomCode}`);
+        
+        const detailsDir = path.join(__dirname, 'evaluation-details');
+        if (!fs.existsSync(detailsDir)) {
+            fs.mkdirSync(detailsDir, { recursive: true });
+            console.log(`   - Created directory: ${detailsDir}`);
+        }
+        
+        const safeHostName = sanitizeFileName(hostName);
+        const safeRoomCode = sanitizeFileName(roomCode);
+        const fileName = `${safeHostName}-${safeRoomCode}-evaluation-details.json`;
+        const filePath = path.join(detailsDir, fileName);
+        
+        // Validate input data
+        if (!evaluations || !evaluations.host || !evaluations.members) {
+            console.error('   ❌ Invalid evaluations data');
+            return false;
+        }
+        
+        if (!evaluationSetup || !evaluationSetup.hostCriteria || !evaluationSetup.memberCriteria) {
+            console.error('   ❌ Invalid evaluation setup');
+            return false;
+        }
+        
+        // Tính chi tiết đánh giá cho từng member
+        const members = players.filter(p => !p.isHost);
+        console.log(`   - Processing ${members.length} members`);
+        const memberDetails = members.map(member => {
+            // Đánh giá từ host
+            const hostEval = evaluations.host[member.id] || {};
+            const hostEvaluationDetails = evaluationSetup.hostCriteria.map(criteria => {
+                const levelId = hostEval[criteria.id];
+                const level = evaluationSetup.ratingLevels.find(l => l.id === levelId);
+                const score = levelId ? (criteria.maxScore / 4) * levelId : 0;
+                
+                return {
+                    criteriaId: criteria.id,
+                    criteriaName: criteria.name,
+                    criteriaDescription: criteria.description,
+                    maxScore: criteria.maxScore,
+                    levelId: levelId,
+                    levelName: level?.name || 'Chưa đánh giá',
+                    levelEmoji: level?.emoji || '',
+                    score: score
+                };
+            });
+            
+            // Đánh giá từ peers
+            const peerEvaluations = [];
+            Object.keys(evaluations.members).forEach(evaluatorId => {
+                const evaluator = players.find(p => p.id === evaluatorId);
+                const peerEval = evaluations.members[evaluatorId][member.id] || {};
+                
+                const peerDetails = evaluationSetup.memberCriteria.map(criteria => {
+                    const levelId = peerEval[criteria.id];
+                    const level = evaluationSetup.ratingLevels.find(l => l.id === levelId);
+                    const score = levelId ? (criteria.maxScore / 4) * levelId : 0;
+                    
+                    return {
+                        criteriaId: criteria.id,
+                        criteriaName: criteria.name,
+                        criteriaDescription: criteria.description,
+                        maxScore: criteria.maxScore,
+                        levelId: levelId,
+                        levelName: level?.name || 'Chưa đánh giá',
+                        levelEmoji: level?.emoji || '',
+                        score: score
+                    };
+                });
+                
+                peerEvaluations.push({
+                    evaluatorId: evaluatorId,
+                    evaluatorName: evaluator?.name || 'Unknown',
+                    evaluations: peerDetails
+                });
+            });
+            
+            // Tính tổng điểm
+            const hostTotalScore = hostEvaluationDetails.reduce((sum, detail) => sum + detail.score, 0);
+            const peerTotalScores = peerEvaluations.map(peer => 
+                peer.evaluations.reduce((sum, detail) => sum + detail.score, 0)
+            );
+            const peerAverageScore = peerTotalScores.length > 0 
+                ? peerTotalScores.reduce((a, b) => a + b, 0) / peerTotalScores.length 
+                : 0;
+            
+            return {
+                memberId: member.id,
+                memberName: member.name,
+                finalScore: member.score,
+                hostEvaluation: {
+                    totalScore: hostTotalScore,
+                    details: hostEvaluationDetails
+                },
+                peerEvaluations: peerEvaluations,
+                peerAverageScore: peerAverageScore,
+                summary: {
+                    hostScore: hostTotalScore,
+                    peerAverageScore: peerAverageScore,
+                    totalEvaluationScore: hostTotalScore + peerAverageScore
+                }
+            };
+        });
+        
+        const totalMembers = members.length;
+        const totalEvaluators = Object.keys(evaluations.members).length;
+        const avgHostScore = totalMembers > 0 
+            ? memberDetails.reduce((sum, m) => sum + m.hostEvaluation.totalScore, 0) / totalMembers 
+            : 0;
+        const avgPeerScore = totalMembers > 0 
+            ? memberDetails.reduce((sum, m) => sum + m.peerAverageScore, 0) / totalMembers 
+            : 0;
+        
+        const evaluationDetails = {
+            hostName: hostName,
+            roomCode: roomCode,
+            timestamp: new Date().toISOString(),
+            evaluationSetup: {
+                hostCriteria: evaluationSetup.hostCriteria,
+                memberCriteria: evaluationSetup.memberCriteria,
+                ratingLevels: evaluationSetup.ratingLevels
+            },
+            memberDetails: memberDetails,
+            summary: {
+                totalMembers: totalMembers,
+                totalEvaluators: totalEvaluators,
+                averageHostScore: avgHostScore,
+                averagePeerScore: avgPeerScore
+            }
+        };
+        
+        fs.writeFileSync(filePath, JSON.stringify(evaluationDetails, null, 2));
+        console.log(`📊 Evaluation details saved: ${filePath}`);
+        console.log(`   - Host: ${hostName} → ${safeHostName}`);
+        console.log(`   - Room: ${roomCode} → ${safeRoomCode}`);
+        console.log(`   - File: ${fileName}`);
+        console.log(`   - Members: ${totalMembers}`);
+        console.log(`   - Evaluators: ${totalEvaluators}`);
+        return true;
+    } catch (error) {
+        console.error('❌ Error saving evaluation details:', error);
+        console.error('   Stack:', error.stack);
+        return false;
+    }
+}
 
 // ============ EVALUATION HELPER FUNCTIONS ============
 
@@ -965,61 +1315,12 @@ function checkEvaluationComplete(room, roomCode) {
     const submittedCount = Object.keys(room.evaluations.members).length;
     
     if (room.evaluations.host && submittedCount === totalMembers) {
-        console.log('📊 All evaluations submitted. Calculating peer evaluation scores...');
+        console.log('📊 All evaluations submitted. Finalizing results...');
         
-        // CỘNG ĐIỂM TỪ PEER EVALUATIONS VÀO ĐIỂM TÍCH LŨY
-        const members = room.players.filter(p => !p.isHost);
-        const peerEvaluationScores = {}; // Điểm trung bình từ peer evaluations
+        // Điểm đã được cộng ngay khi mỗi member submit rồi
+        // Chỉ cần tính kết quả chi tiết và broadcast
         
-        members.forEach(member => {
-            // Tính điểm trung bình từ peers
-            let peerScores = [];
-            Object.values(room.evaluations.members).forEach(peerEval => {
-                const peerRating = peerEval[member.id];
-                if (peerRating) {
-                    let peerScore = 0;
-                    Object.keys(peerRating).forEach(criteriaId => {
-                        const levelId = peerRating[criteriaId];
-                        const criteria = room.evaluationSetup.memberCriteria.find(c => c.id == criteriaId);
-                        if (criteria) {
-                            peerScore += (criteria.maxScore / 4) * levelId;
-                        }
-                    });
-                    peerScores.push(peerScore);
-                }
-            });
-            
-            // Tính điểm trung bình từ peers
-            const avgPeerScore = peerScores.length > 0 
-                ? peerScores.reduce((a, b) => a + b, 0) / peerScores.length 
-                : 0;
-            
-            peerEvaluationScores[member.id] = Math.round(avgPeerScore * 10) / 10; // Làm tròn 1 chữ số
-            
-            // Cộng điểm peer evaluation vào điểm tích lũy
-            const currentScore = member.score || 0;
-            const newScore = currentScore + peerEvaluationScores[member.id];
-            member.score = newScore;
-            
-            console.log(`✅ Peer evaluation for ${member.name}: ${currentScore} + ${peerEvaluationScores[member.id]} = ${newScore}`);
-        });
-        
-        // Lưu điểm mới vào file
         const hostPlayer = room.players.find(p => p.isHost);
-        if (hostPlayer) {
-            saveScoresToFile(hostPlayer.name, roomCode, room.players);
-            console.log(`💾 Scores with peer evaluations saved to file for ${hostPlayer.name}`);
-        }
-        
-        // Broadcast điểm mới đến tất cả clients
-        io.to(roomCode).emit('players-list', { players: room.players });
-        
-        // Broadcast thông báo cập nhật điểm từ peer evaluations
-        io.to(roomCode).emit('peer-evaluation-scores-added', {
-            message: 'Điểm đánh giá từ đồng đội đã được cộng vào điểm tích lũy!',
-            updatedPlayers: members,
-            peerEvaluationScores: peerEvaluationScores
-        });
         
         // Tính kết quả chi tiết
         const results = calculateEvaluationResults(room);
@@ -1027,6 +1328,9 @@ function checkEvaluationComplete(room, roomCode) {
         // Lưu kết quả vào file
         if (hostPlayer) {
             saveEvaluationResults(hostPlayer.name, roomCode, results);
+            
+            // Lưu chi tiết đánh giá
+            saveEvaluationDetails(hostPlayer.name, roomCode, room.evaluationSetup, room.evaluations, room.players);
         }
         
         // Broadcast kết quả
@@ -1034,7 +1338,13 @@ function checkEvaluationComplete(room, roomCode) {
             results: results
         });
         
-        console.log(`🎯 Peer evaluation scores added for room ${roomCode}`);
+        // Broadcast thông báo hoàn thành
+        io.to(roomCode).emit('all-evaluations-complete', {
+            message: 'Tất cả đánh giá đã hoàn thành! Điểm đã được cộng vào.',
+            players: room.players
+        });
+        
+        console.log(`🎯 All evaluations complete for room ${roomCode}`);
     }
 }
 

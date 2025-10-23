@@ -2080,16 +2080,27 @@
         function submitMemberEvaluation() {
             // Thu thập đánh giá
             const evaluations = {};
+            const evaluationScores = {}; // Điểm thực tế sẽ cộng vào
             
-            document.querySelectorAll('[data-peer-eval]').forEach(elem => {
-                const peerId = elem.dataset.peerId;
-                const criteriaId = elem.dataset.criteriaId;
-                const rating = parseInt(elem.value);
+            // Thu thập đánh giá cho từng peer
+            const peerIds = [...new Set(Array.from(document.querySelectorAll('[data-peer-eval]')).map(elem => elem.dataset.peerId))];
+            
+            peerIds.forEach(peerId => {
+                evaluations[peerId] = {};
+                evaluationScores[peerId] = 0;
                 
-                if (!evaluations[peerId]) {
-                    evaluations[peerId] = {};
-                }
-                evaluations[peerId][criteriaId] = rating;
+                // Thu thập đánh giá cho tất cả tiêu chí của peer này
+                evaluationSetup.memberCriteria.forEach(criteria => {
+                    const selectedRadio = document.querySelector(`input[name="peer_${peerId}_criteria_${criteria.id}"]:checked`);
+                    if (selectedRadio) {
+                        const levelId = parseInt(selectedRadio.value);
+                        evaluations[peerId][criteria.id] = levelId;
+                        
+                        // Cộng điểm theo công thức: (maxScore/4) × id
+                        const actualScore = (criteria.maxScore / 4) * levelId;
+                        evaluationScores[peerId] += actualScore;
+                    }
+                });
             });
 
             // Validate
@@ -2104,14 +2115,17 @@
 
             memberEvaluations[currentPlayer] = evaluations;
 
-            // Gửi lên server
+            console.log('📊 Member evaluation scores:', evaluationScores);
+
+            // Gửi lên server với điểm đánh giá
             socket.emit('submit-member-evaluation', {
                 roomCode: currentRoom,
                 evaluatorId: socket.id,
-                evaluations: evaluations
+                evaluations: evaluations,
+                evaluationScores: evaluationScores
             });
 
-            console.log('✅ Đã gửi đánh giá! Cảm ơn bạn!');
+            console.log('✅ Đã gửi đánh giá! Điểm đánh giá sẽ được cộng vào điểm tích lũy.');
             showScreen('lobbyScreen');
         }
 
@@ -2181,6 +2195,26 @@
                     updateMyScoreDisplay(true); // Animation
                 }
             }
+        });
+        
+        // Nhận thông báo khi member đánh giá xong (điểm đã được cộng ngay)
+        socket.on('member-evaluation-scores-added', (data) => {
+            console.log('🎯 Member evaluation scores added:', data);
+            
+            // Cập nhật điểm cho người chơi hiện tại nếu cần
+            if (!isHost && currentPlayer) {
+                const updatedPlayer = data.updatedPlayers?.find(p => p.name === currentPlayer);
+                if (updatedPlayer) {
+                    currentPlayerScore = updatedPlayer.score;
+                    updateConnectionStatus(true);
+                    updateMyScoreDisplay(true); // Animation
+                }
+            }
+        });
+        
+        // Nhận thông báo khi tất cả đánh giá hoàn thành
+        socket.on('all-evaluations-complete', (data) => {
+            console.log('🎉 All evaluations complete:', data);
         });
 
         function displayEvaluationResults(results) {

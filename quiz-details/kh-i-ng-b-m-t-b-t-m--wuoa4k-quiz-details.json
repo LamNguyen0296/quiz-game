@@ -1,0 +1,49 @@
+{
+  "hostName": "KHỞI ĐỘNG: BÍ MẬT - BẬT MÍ",
+  "roomCode": "WUOA4K",
+  "timestamp": "2025-10-22T16:56:59.548Z",
+  "quiz": {
+    "questions": [
+      {
+        "questionNumber": 1,
+        "question": "abc ?",
+        "options": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ],
+        "correctAnswer": 0,
+        "timeLimit": 30,
+        "mediaPath": null,
+        "mediaType": null
+      }
+    ]
+  },
+  "results": [
+    {
+      "playerName": "lam",
+      "playerId": "V6EtqwR8mzxE2UyXAAAN",
+      "totalQuestions": 1,
+      "correctAnswers": 1,
+      "score": 5,
+      "details": [
+        {
+          "questionNumber": 1,
+          "question": "abc ?",
+          "options": [
+            "a",
+            "b",
+            "c",
+            "d"
+          ],
+          "correctAnswer": 0,
+          "playerAnswer": 0,
+          "isCorrect": true,
+          "answered": true,
+          "pointsEarned": 5
+        }
+      ]
+    }
+  ]
+}
