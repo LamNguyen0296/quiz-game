@@ -558,6 +558,61 @@
         .host-name-permanent.show {
             display: block;
         }
+
+        /* Radio button styling */
+        input[type="radio"] {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ddd;
+            border-radius: 50%;
+            background: white;
+            position: relative;
+            cursor: pointer;
+        }
+
+        input[type="radio"]:checked {
+            border-color: #667eea;
+            background: #667eea;
+        }
+
+        input[type="radio"]:checked::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: white;
+        }
+
+        /* Radio label hover effect */
+        label[id$="TypeLabel"]:hover {
+            border-color: #667eea !important;
+            background: #f8f9fa;
+        }
+
+        input[type="radio"]:checked + span {
+            color: #667eea;
+        }
+
+        /* Special styling for create room button */
+        #createRoomLabel {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%) !important;
+            color: white !important;
+            border-color: #43e97b !important;
+        }
+
+        #createRoomLabel:hover {
+            background: linear-gradient(135deg, #38d96b 0%, #2dd4aa 100%) !important;
+            border-color: #38d96b !important;
+        }
+
+        #createRoomType:checked + span {
+            color: white !important;
+        }
     </style>
 </head>
 <body>
@@ -573,17 +628,71 @@
         <!-- Welcome Screen -->
         <div id="welcomeScreen" class="screen active">
             <h1>🎯 Quiz Game</h1>
+            
+            <!-- Action Selection -->
             <div class="input-group">
-                <label>Tên của bạn:</label>
-                <input type="text" id="playerName" placeholder="Nhập tên của bạn">
-        </div>
-            <div class="input-group">
+                <label>Chọn hành động:</label>
+                <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+                    <label style="display: flex; align-items: center; gap: 8px; padding: 15px 20px; border: 2px solid #e0e0e0; border-radius: 8px; cursor: pointer; flex: 1; transition: all 0.3s; background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white;" id="createRoomLabel">
+                        <input type="radio" name="actionType" value="create" id="createRoomType" style="margin: 0;">
+                        <span style="font-weight: 600;">🏠 Tạo phòng</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; padding: 15px 20px; border: 2px solid #e0e0e0; border-radius: 8px; cursor: pointer; flex: 1; transition: all 0.3s;" id="joinRoomLabel">
+                        <input type="radio" name="actionType" value="join" id="joinRoomType" style="margin: 0;">
+                        <span style="font-weight: 600;">🚪 Tham gia phòng</span>
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Room Code Input (only shown when join is selected) -->
+            <div id="roomCodeSection" class="input-group" style="display: none;">
                 <label>Mã phòng (6 ký tự):</label>
                 <input type="text" id="roomCodeInput" placeholder="Nhập mã phòng" maxlength="6" style="text-transform: uppercase;">
-    </div>
+            </div>
+            
+            <!-- Host Name Input (only shown when create is selected) -->
+            <div id="hostNameSection" class="input-group" style="display: none;">
+                <label>Tên chủ phòng:</label>
+                <input type="text" id="hostName" placeholder="Nhập tên của bạn">
+            </div>
+            
+            <!-- Player Type Selection (only shown when join is selected) -->
+            <div id="playerTypeSection" class="input-group" style="display: none;">
+                <label>Chọn loại tham gia:</label>
+                <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+                    <label style="display: flex; align-items: center; gap: 8px; padding: 10px 15px; border: 2px solid #e0e0e0; border-radius: 8px; cursor: pointer; flex: 1; transition: all 0.3s;" id="groupTypeLabel">
+                        <input type="radio" name="playerType" value="group" id="groupType" style="margin: 0;">
+                        <span style="font-weight: 600;">👥 Nhóm</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; padding: 10px 15px; border: 2px solid #e0e0e0; border-radius: 8px; cursor: pointer; flex: 1; transition: all 0.3s;" id="teacherTypeLabel">
+                        <input type="radio" name="playerType" value="teacher" id="teacherType" style="margin: 0;">
+                        <span style="font-weight: 600;">👨‍🏫 Thầy/Cô</span>
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Group Selection (only shown when group is selected) -->
+            <div id="groupSelection" class="input-group" style="display: none;">
+                <label>Chọn nhóm:</label>
+                <select id="groupNumber" style="margin-bottom: 15px;">
+                    <option value="">-- Chọn nhóm --</option>
+                    <option value="1">Nhóm 1</option>
+                    <option value="2">Nhóm 2</option>
+                    <option value="3">Nhóm 3</option>
+                    <option value="4">Nhóm 4</option>
+                </select>
+                <label>Tên nhóm:</label>
+                <input type="text" id="groupName" placeholder="Ví dụ: Nguyễn Văn A">
+            </div>
+            
+            <!-- Teacher Name Input (only shown when teacher is selected) -->
+            <div id="teacherSelection" class="input-group" style="display: none;">
+                <label>Tên thầy/cô:</label>
+                <input type="text" id="teacherName" placeholder="Nhập tên thầy/cô">
+            </div>
+            
             <div style="text-align: center;">
-                <button class="btn btn-success" onclick="createRoom()">Tạo phòng</button>
-                <button class="btn" onclick="joinRoom()">Tham gia phòng</button>
+                <button class="btn btn-success" onclick="handleAction()" id="actionButton">Tạo phòng</button>
             </div>
         </div>
 
@@ -841,9 +950,9 @@
 
         // Room functions
         async function createRoom() {
-            const name = document.getElementById('playerName').value.trim();
+            const name = document.getElementById('hostName').value.trim();
             if (!name) {
-                alert('Vui lòng nhập tên!');
+                alert('Vui lòng nhập tên chủ phòng!');
                 return;
             }
             
@@ -885,16 +994,66 @@
         }
 
         function joinRoom() {
-            const name = document.getElementById('playerName').value.trim();
             const code = document.getElementById('roomCodeInput').value.trim().toUpperCase();
+            const playerType = document.querySelector('input[name="playerType"]:checked');
             
-            if (!name || !code || code.length !== 6) {
-                alert('Vui lòng nhập đầy đủ thông tin!');
+            if (!code || code.length !== 6) {
+                alert('Vui lòng nhập mã phòng hợp lệ!');
                 return;
             }
+            
+            if (!playerType) {
+                alert('Vui lòng chọn loại tham gia!');
+                return;
+            }
+            
+            let playerName = '';
+            let groupNumber = null;
+            
+            if (playerType.value === 'group') {
+                groupNumber = document.getElementById('groupNumber').value;
+                playerName = document.getElementById('groupName').value.trim();
+                
+                if (!groupNumber) {
+                    alert('Vui lòng chọn nhóm!');
+                    return;
+                }
+                
+                if (!playerName) {
+                    alert('Vui lòng nhập tên nhóm!');
+                    return;
+                }
+            } else if (playerType.value === 'teacher') {
+                playerName = document.getElementById('teacherName').value.trim();
+                
+                if (!playerName) {
+                    alert('Vui lòng nhập tên thầy/cô!');
+                    return;
+                }
+            }
 
-            currentPlayer = name;
-            socket.emit('join-room', { roomCode: code, playerName: name });
+            currentPlayer = playerName;
+            socket.emit('join-room', { 
+                roomCode: code, 
+                playerType: playerType.value,
+                playerName: playerName,
+                groupNumber: groupNumber ? parseInt(groupNumber) : null
+            });
+        }
+
+        function handleAction() {
+            const actionType = document.querySelector('input[name="actionType"]:checked');
+            
+            if (!actionType) {
+                alert('Vui lòng chọn hành động!');
+                return;
+            }
+            
+            if (actionType.value === 'create') {
+                createRoom();
+            } else if (actionType.value === 'join') {
+                joinRoom();
+            }
         }
 
         function leaveRoom() {
@@ -1692,6 +1851,62 @@
         // Auto uppercase room code
         document.getElementById('roomCodeInput').addEventListener('input', (e) => {
             e.target.value = e.target.value.toUpperCase();
+        });
+
+        // Handle player type selection
+        document.addEventListener('DOMContentLoaded', function() {
+            const createRoomType = document.getElementById('createRoomType');
+            const joinRoomType = document.getElementById('joinRoomType');
+            const roomCodeSection = document.getElementById('roomCodeSection');
+            const hostNameSection = document.getElementById('hostNameSection');
+            const playerTypeSection = document.getElementById('playerTypeSection');
+            const actionButton = document.getElementById('actionButton');
+            
+            const groupType = document.getElementById('groupType');
+            const teacherType = document.getElementById('teacherType');
+            const groupSelection = document.getElementById('groupSelection');
+            const teacherSelection = document.getElementById('teacherSelection');
+
+            function updateActionSelection() {
+                if (createRoomType.checked) {
+                    roomCodeSection.style.display = 'none';
+                    hostNameSection.style.display = 'block';
+                    playerTypeSection.style.display = 'none';
+                    groupSelection.style.display = 'none';
+                    teacherSelection.style.display = 'none';
+                    actionButton.textContent = 'Tạo phòng';
+                } else if (joinRoomType.checked) {
+                    roomCodeSection.style.display = 'block';
+                    hostNameSection.style.display = 'none';
+                    playerTypeSection.style.display = 'block';
+                    actionButton.textContent = 'Tham gia phòng';
+                } else {
+                    roomCodeSection.style.display = 'none';
+                    hostNameSection.style.display = 'none';
+                    playerTypeSection.style.display = 'none';
+                    groupSelection.style.display = 'none';
+                    teacherSelection.style.display = 'none';
+                    actionButton.textContent = 'Tạo phòng';
+                }
+            }
+
+            function updatePlayerTypeSelection() {
+                if (groupType.checked) {
+                    groupSelection.style.display = 'block';
+                    teacherSelection.style.display = 'none';
+                } else if (teacherType.checked) {
+                    groupSelection.style.display = 'none';
+                    teacherSelection.style.display = 'block';
+                } else {
+                    groupSelection.style.display = 'none';
+                    teacherSelection.style.display = 'none';
+                }
+            }
+
+            createRoomType.addEventListener('change', updateActionSelection);
+            joinRoomType.addEventListener('change', updateActionSelection);
+            groupType.addEventListener('change', updatePlayerTypeSelection);
+            teacherType.addEventListener('change', updatePlayerTypeSelection);
         });
 
         // ============ EVALUATION SYSTEM ============

@@ -559,22 +559,41 @@ io.on('connection', (socket) => {
 
     // Tham gia phòng
     socket.on('join-room', (data) => {
-        const { roomCode, playerName } = data;
+        const { roomCode, playerType, playerName, groupNumber } = data;
         
-        // Kiểm tra xem có phải là tên nhóm mặc định không
-        const defaultGroupNames = ['Nhom1', 'Nhom2', 'Nhom3', 'Nhom4'];
-        let formattedPlayerName = playerName;
+        console.log(`🔍 Join room attempt: type="${playerType}", name="${playerName}", groupNumber="${groupNumber}"`);
+        
+        let formattedPlayerName = '';
         let isDefaultGroup = false;
         
-        if (defaultGroupNames.includes(playerName)) {
-            // Nếu là tên nhóm mặc định, giữ nguyên tên
-            formattedPlayerName = playerName;
-            isDefaultGroup = true;
-        } else {
-            // Nếu không phải, thêm prefix "Thầy/Cô: "
-            if (!formattedPlayerName.startsWith('Thầy/Cô: ')) {
-                formattedPlayerName = `Thầy/Cô: ${formattedPlayerName}`;
+        if (playerType === 'group') {
+            // Nếu chọn nhóm
+            if (!groupNumber || groupNumber < 1 || groupNumber > 4) {
+                socket.emit('join-error', { message: 'Vui lòng chọn nhóm từ 1 đến 4!' });
+                return;
             }
+            
+            if (!playerName || playerName.trim() === '') {
+                socket.emit('join-error', { message: 'Vui lòng nhập tên nhóm!' });
+                return;
+            }
+            
+            formattedPlayerName = `Nhóm ${groupNumber}: ${playerName.trim()}`;
+            isDefaultGroup = true;
+            console.log(`✅ Joining as group: ${formattedPlayerName}`);
+        } else if (playerType === 'teacher') {
+            // Nếu chọn thầy/cô
+            if (!playerName || playerName.trim() === '') {
+                socket.emit('join-error', { message: 'Vui lòng nhập tên thầy/cô!' });
+                return;
+            }
+            
+            formattedPlayerName = `Thầy/Cô: ${playerName.trim()}`;
+            isDefaultGroup = false;
+            console.log(`👨‍🏫 Joining as teacher: ${formattedPlayerName}`);
+        } else {
+            socket.emit('join-error', { message: 'Vui lòng chọn loại tham gia!' });
+            return;
         }
         
         // Kiểm tra phòng có tồn tại không
@@ -607,8 +626,12 @@ io.on('connection', (socket) => {
         }
 
         if (isDefaultGroup) {
-            // Nếu là tên nhóm mặc định, kiểm tra xem có thể thay thế member mặc định không
-            const defaultMemberIndex = room.players.findIndex(p => p.name === playerName && p.id.startsWith('default-member-'));
+            console.log(`🎯 Processing group: ${formattedPlayerName}`);
+            // Nếu là nhóm, kiểm tra xem có thể thay thế member mặc định không
+            const groupNumber = formattedPlayerName.match(/Nhóm (\d+):/)?.[1];
+            const defaultMemberName = `Nhom${groupNumber}`;
+            const defaultMemberIndex = room.players.findIndex(p => p.name === defaultMemberName && p.id.startsWith('default-member-'));
+            console.log(`🔍 Looking for default member with name "${defaultMemberName}":`, defaultMemberIndex);
             
             if (defaultMemberIndex !== -1) {
                 // Thay thế member mặc định
@@ -618,10 +641,11 @@ io.on('connection', (socket) => {
                     isHost: false,
                     score: savedScore
                 };
-                console.log(`Replaced default member ${playerName} with real player`);
+                console.log(`✅ Replaced default member ${defaultMemberName} with real player ${formattedPlayerName}`);
             } else {
                 // Kiểm tra xem có phải nhóm này đã từng tham gia và rời đi không
                 const existingRealPlayer = room.players.find(p => p.name === formattedPlayerName && !p.id.startsWith('default-member-'));
+                console.log(`🔍 Looking for existing real player with name "${formattedPlayerName}":`, existingRealPlayer ? 'Found' : 'Not found');
                 
                 if (existingRealPlayer) {
                     // Nhóm này đã từng tham gia và rời đi, cho phép vào lại với socket ID mới
@@ -633,11 +657,12 @@ io.on('connection', (socket) => {
                             isHost: false,
                             score: savedScore
                         };
-                        console.log(`Rejoined existing player ${playerName} with new socket ID`);
+                        console.log(`✅ Rejoined existing player ${formattedPlayerName} with new socket ID`);
                     }
                 } else {
                     // Không tìm thấy slot nào cho nhóm này
-                    socket.emit('join-error', { message: `Nhóm ${playerName} không có slot trống!` });
+                    console.log(`❌ No slot found for group ${formattedPlayerName}`);
+                    socket.emit('join-error', { message: `Nhóm ${groupNumber} không có slot trống!` });
                     return;
                 }
             }
@@ -1017,19 +1042,20 @@ io.on('connection', (socket) => {
                 const player = room.players[playerIndex];
                 const playerName = player.name;
                 
-                // Kiểm tra xem có phải nhóm mặc định không
-                const defaultGroupNames = ['Nhom1', 'Nhom2', 'Nhom3', 'Nhom4'];
-                const isDefaultGroup = defaultGroupNames.includes(playerName);
+                // Kiểm tra xem có phải nhóm không
+                const isDefaultGroup = playerName.startsWith('Nhóm ');
                 
                 if (isDefaultGroup) {
-                    // Nếu là nhóm mặc định rời đi, tạo lại member mặc định
+                    // Nếu là nhóm rời đi, tạo lại member mặc định
+                    const groupNumber = playerName.match(/Nhóm (\d+):/)?.[1];
+                    const defaultMemberName = `Nhom${groupNumber}`;
                     room.players[playerIndex] = {
-                        id: `default-member-${playerName.charAt(playerName.length - 1)}`,
-                        name: playerName,
+                        id: `default-member-${groupNumber}`,
+                        name: defaultMemberName,
                         isHost: false,
                         score: 0
                     };
-                    console.log(`Default group ${playerName} left, restored default member`);
+                    console.log(`Group ${playerName} left, restored default member ${defaultMemberName}`);
                 } else {
                     // Nếu không phải nhóm mặc định, xóa hoàn toàn
                     room.players.splice(playerIndex, 1);
@@ -1068,19 +1094,20 @@ io.on('connection', (socket) => {
                 const player = room.players[playerIndex];
                 const playerName = player.name;
                 
-                // Kiểm tra xem có phải nhóm mặc định không
-                const defaultGroupNames = ['Nhom1', 'Nhom2', 'Nhom3', 'Nhom4'];
-                const isDefaultGroup = defaultGroupNames.includes(playerName);
+                // Kiểm tra xem có phải nhóm không
+                const isDefaultGroup = playerName.startsWith('Nhóm ');
                 
                 if (isDefaultGroup) {
-                    // Nếu là nhóm mặc định rời đi, tạo lại member mặc định
+                    // Nếu là nhóm rời đi, tạo lại member mặc định
+                    const groupNumber = playerName.match(/Nhóm (\d+):/)?.[1];
+                    const defaultMemberName = `Nhom${groupNumber}`;
                     room.players[playerIndex] = {
-                        id: `default-member-${playerName.charAt(playerName.length - 1)}`,
-                        name: playerName,
+                        id: `default-member-${groupNumber}`,
+                        name: defaultMemberName,
                         isHost: false,
                         score: 0
                     };
-                    console.log(`Default group ${playerName} left, restored default member`);
+                    console.log(`Group ${playerName} left, restored default member ${defaultMemberName}`);
                 } else {
                     // Nếu không phải nhóm mặc định, xóa hoàn toàn
                     room.players.splice(playerIndex, 1);
