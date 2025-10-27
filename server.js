@@ -607,8 +607,9 @@ io.on('connection', (socket) => {
         }
 
         if (isDefaultGroup) {
-            // Nếu là tên nhóm mặc định, thay thế member mặc định tương ứng
+            // Nếu là tên nhóm mặc định, kiểm tra xem có thể thay thế member mặc định không
             const defaultMemberIndex = room.players.findIndex(p => p.name === playerName && p.id.startsWith('default-member-'));
+            
             if (defaultMemberIndex !== -1) {
                 // Thay thế member mặc định
                 room.players[defaultMemberIndex] = {
@@ -619,8 +620,26 @@ io.on('connection', (socket) => {
                 };
                 console.log(`Replaced default member ${playerName} with real player`);
             } else {
-                socket.emit('join-error', { message: `Nhóm ${playerName} đã được thay thế!` });
-                return;
+                // Kiểm tra xem có phải nhóm này đã từng tham gia và rời đi không
+                const existingRealPlayer = room.players.find(p => p.name === formattedPlayerName && !p.id.startsWith('default-member-'));
+                
+                if (existingRealPlayer) {
+                    // Nhóm này đã từng tham gia và rời đi, cho phép vào lại với socket ID mới
+                    const playerIndex = room.players.findIndex(p => p.id === existingRealPlayer.id);
+                    if (playerIndex !== -1) {
+                        room.players[playerIndex] = {
+                            id: socket.id,
+                            name: formattedPlayerName,
+                            isHost: false,
+                            score: savedScore
+                        };
+                        console.log(`Rejoined existing player ${playerName} with new socket ID`);
+                    }
+                } else {
+                    // Không tìm thấy slot nào cho nhóm này
+                    socket.emit('join-error', { message: `Nhóm ${playerName} không có slot trống!` });
+                    return;
+                }
             }
         } else {
             // Kiểm tra số lượng người chơi thực tế (không tính host và member mặc định, tối đa 4 người thực)
@@ -989,14 +1008,32 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
 
-        // Tìm và xóa người chơi khỏi phòng
+        // Tìm và xử lý người chơi rời khỏi phòng
         if (socket.roomCode && rooms.has(socket.roomCode)) {
             const room = rooms.get(socket.roomCode);
             const playerIndex = room.players.findIndex(p => p.id === socket.id);
             
             if (playerIndex !== -1) {
-                const playerName = room.players[playerIndex].name;
-                room.players.splice(playerIndex, 1);
+                const player = room.players[playerIndex];
+                const playerName = player.name;
+                
+                // Kiểm tra xem có phải nhóm mặc định không
+                const defaultGroupNames = ['Nhom1', 'Nhom2', 'Nhom3', 'Nhom4'];
+                const isDefaultGroup = defaultGroupNames.includes(playerName);
+                
+                if (isDefaultGroup) {
+                    // Nếu là nhóm mặc định rời đi, tạo lại member mặc định
+                    room.players[playerIndex] = {
+                        id: `default-member-${playerName.charAt(playerName.length - 1)}`,
+                        name: playerName,
+                        isHost: false,
+                        score: 0
+                    };
+                    console.log(`Default group ${playerName} left, restored default member`);
+                } else {
+                    // Nếu không phải nhóm mặc định, xóa hoàn toàn
+                    room.players.splice(playerIndex, 1);
+                }
 
                 // Nếu không còn người chơi nào, xóa phòng
                 if (room.players.length === 0) {
@@ -1013,7 +1050,8 @@ io.on('connection', (socket) => {
                     io.to(socket.roomCode).emit('player-left', {
                         playerId: socket.id,
                         playerName: playerName,
-                        players: getVisiblePlayers(room.players)
+                        players: getVisiblePlayers(room.players),
+                        isDefaultGroup: isDefaultGroup
                     });
                 }
             }
@@ -1027,8 +1065,26 @@ io.on('connection', (socket) => {
             const playerIndex = room.players.findIndex(p => p.id === socket.id);
             
             if (playerIndex !== -1) {
-                const playerName = room.players[playerIndex].name;
-                room.players.splice(playerIndex, 1);
+                const player = room.players[playerIndex];
+                const playerName = player.name;
+                
+                // Kiểm tra xem có phải nhóm mặc định không
+                const defaultGroupNames = ['Nhom1', 'Nhom2', 'Nhom3', 'Nhom4'];
+                const isDefaultGroup = defaultGroupNames.includes(playerName);
+                
+                if (isDefaultGroup) {
+                    // Nếu là nhóm mặc định rời đi, tạo lại member mặc định
+                    room.players[playerIndex] = {
+                        id: `default-member-${playerName.charAt(playerName.length - 1)}`,
+                        name: playerName,
+                        isHost: false,
+                        score: 0
+                    };
+                    console.log(`Default group ${playerName} left, restored default member`);
+                } else {
+                    // Nếu không phải nhóm mặc định, xóa hoàn toàn
+                    room.players.splice(playerIndex, 1);
+                }
 
                 socket.leave(socket.roomCode);
 
@@ -1047,7 +1103,8 @@ io.on('connection', (socket) => {
                     io.to(socket.roomCode).emit('player-left', {
                         playerId: socket.id,
                         playerName: playerName,
-                        players: getVisiblePlayers(room.players)
+                        players: getVisiblePlayers(room.players),
+                        isDefaultGroup: isDefaultGroup
                     });
                 }
 
