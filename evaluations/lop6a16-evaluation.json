@@ -1,0 +1,44 @@
+{
+  "results": {
+    "noDynO5WUGZj-xz9AAAH": {
+      "name": "Nhom1",
+      "currentScore": 50,
+      "hostScore": 35,
+      "peerScore": 5,
+      "totalScore": 50,
+      "details": {
+        "hostEvaluation": {
+          "1": 4,
+          "2": 2,
+          "3": 4,
+          "4": 4,
+          "5": 4
+        },
+        "peerEvaluations": [
+          5
+        ]
+      }
+    },
+    "OHENDaNdajtv2uBNAAAJ": {
+      "name": "Nhom2",
+      "currentScore": 40.5,
+      "hostScore": 35.5,
+      "peerScore": 5,
+      "totalScore": 40.5,
+      "details": {
+        "hostEvaluation": {
+          "1": 4,
+          "2": 4,
+          "3": 4,
+          "4": 4,
+          "5": 1
+        },
+        "peerEvaluations": [
+          5
+        ]
+      }
+    }
+  },
+  "roomCode": "QUIZ12",
+  "completedAt": "2025-10-27T07:45:21.254Z"
+}

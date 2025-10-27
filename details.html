@@ -98,6 +98,40 @@
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
         }
         
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+        
         .list-item h3 {
             color: #333;
             margin-bottom: 10px;
@@ -328,12 +362,20 @@
                 }
                 
                 listContainer.innerHTML = data.map(item => `
-                    <div class="list-item" onclick="showEvaluationDetail('${item.hostName}', '${item.roomCode}')">
+                    <div class="list-item">
                         <h3>⭐ ${item.hostName} - Phòng ${item.roomCode}</h3>
                         <div class="meta">
                             <span>📅 ${new Date(item.timestamp).toLocaleString('vi-VN')}</span>
                             <span>👥 ${item.totalMembers} thành viên</span>
                             <span>👨‍🏫 ${item.totalEvaluators} người đánh giá</span>
+                        </div>
+                        <div class="action-buttons">
+                            <button onclick="showEvaluationDetail('${item.hostName}', '${item.roomCode}')" class="btn btn-primary">
+                                📊 Xem chi tiết
+                            </button>
+                            <button onclick="openEvaluationDetailsPage('${item.hostName}', '${item.roomCode}')" class="btn btn-secondary">
+                                🔍 Chi tiết đánh giá
+                            </button>
                         </div>
                     </div>
                 `).join('');
@@ -481,6 +523,13 @@
             } catch (error) {
                 document.getElementById('detail-content').innerHTML = '<div class="error">Lỗi khi tải chi tiết đánh giá</div>';
             }
+        }
+        
+        function openEvaluationDetailsPage(hostName, roomCode) {
+            const encodedHostName = encodeURIComponent(hostName);
+            const encodedRoomCode = encodeURIComponent(roomCode);
+            const url = `evaluation-details.html?hostName=${encodedHostName}&roomCode=${encodedRoomCode}`;
+            window.open(url, '_blank');
         }
         
         function showDetailView() {

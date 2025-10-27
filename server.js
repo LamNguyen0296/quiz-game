@@ -118,9 +118,9 @@ function saveScoresToFile(hostName, roomCode, players) {
     try {
         const filePath = getScoresFilePath(hostName);
         
-        // Lọc chỉ lấy người chơi (không phải host) và lấy top 4
+        // Lọc chỉ lấy người chơi thực tế (không phải host và member mặc định) và lấy top 4
         const playerScores = players
-            .filter(p => !p.isHost)
+            .filter(p => !p.isHost && !p.id.startsWith('default-member-'))
             .slice(0, 4)
             .map(p => ({
                 name: p.name,
@@ -165,14 +165,47 @@ function checkScoresExists(hostName) {
     return fs.existsSync(filePath);
 }
 
-// Tạo mã phòng ngẫu nhiên
+// Mã phòng cố định
 function generateRoomCode() {
-    let code = '';
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    for (let i = 0; i < 6; i++) {
-        code += characters.charAt(Math.floor(Math.random() * characters.length));
-    }
-    return code;
+    return 'QUIZ12'; // Mã phòng cố định (6 ký tự)
+}
+
+// Lọc danh sách players để chỉ hiển thị những người thực tế
+function getVisiblePlayers(players) {
+    return players.filter(player => {
+        if (player.isHost) return true; // Luôn hiển thị host
+        if (player.id.startsWith('default-member-')) return false; // Không hiển thị member mặc định chưa được thay thế
+        return true; // Hiển thị member đã được thay thế hoặc member mới
+    });
+}
+
+// Lọc danh sách players để chỉ lấy những người có thể tham gia đánh giá (Thầy/Cô có thể đánh giá nhưng không được đánh giá)
+function getEvaluablePlayers(players) {
+    return players.filter(player => {
+        if (player.isHost) return false; // Host không tham gia đánh giá
+        if (player.id.startsWith('default-member-')) return false; // Không đánh giá member mặc định chưa được thay thế
+        return true; // Tất cả members (bao gồm Thầy/Cô) đều có thể tham gia đánh giá
+    });
+}
+
+// Lọc danh sách players để chỉ lấy những người có thể được đánh giá (loại bỏ Thầy/Cô)
+function getEvaluatedPlayers(players) {
+    return players.filter(player => {
+        if (player.isHost) return false; // Host không được đánh giá
+        if (player.id.startsWith('default-member-')) return false; // Không đánh giá member mặc định chưa được thay thế
+        if (player.name.startsWith('Thầy/Cô: ')) return false; // Không đánh giá Thầy/Cô
+        return true; // Chỉ đánh giá những người không phải Thầy/Cô
+    });
+}
+
+// Lọc danh sách players để chỉ lấy những người có thể tham gia quiz (loại bỏ Thầy/Cô)
+function getQuizPlayers(players) {
+    return players.filter(player => {
+        if (player.isHost) return false; // Host không tham gia quiz
+        if (player.id.startsWith('default-member-')) return false; // Không tham gia quiz nếu là member mặc định chưa được thay thế
+        if (player.name.startsWith('Thầy/Cô: ')) return false; // Thầy/Cô không tham gia quiz
+        return true; // Chỉ những người không phải Thầy/Cô mới tham gia quiz
+    });
 }
 
 // Hàm kết thúc quiz và tính điểm
@@ -185,7 +218,7 @@ function endQuiz(room, roomCode) {
     const playerScores = new Map();
     const playerDetails = new Map();
     
-    room.players.filter(p => !p.isHost).forEach(player => {
+    getQuizPlayers(room.players).forEach(player => {
         playerScores.set(player.id, 0);
         playerDetails.set(player.id, []);
     });
@@ -195,7 +228,7 @@ function endQuiz(room, roomCode) {
         // Lấy tất cả câu trả lời đúng cho câu hỏi này
         const correctAnswers = [];
         
-        room.players.filter(p => !p.isHost).forEach(player => {
+        getQuizPlayers(room.players).forEach(player => {
             const key = `${player.id}-${qIndex}`;
             const playerAnswer = room.answers.get(key);
             
@@ -219,7 +252,7 @@ function endQuiz(room, roomCode) {
         });
 
         // Lưu chi tiết từng câu cho mỗi người chơi
-        room.players.filter(p => !p.isHost).forEach(player => {
+        getQuizPlayers(room.players).forEach(player => {
             const key = `${player.id}-${qIndex}`;
             const playerAnswer = room.answers.get(key);
             
@@ -253,7 +286,7 @@ function endQuiz(room, roomCode) {
 
     // Tạo kết quả
     const results = [];
-    room.players.filter(p => !p.isHost).forEach(player => {
+    getQuizPlayers(room.players).forEach(player => {
         const score = playerScores.get(player.id) || 0;
         const details = playerDetails.get(player.id) || [];
         const correctAnswers = details.filter(d => d.isCorrect).length;
@@ -460,15 +493,41 @@ io.on('connection', (socket) => {
         const playerName = data.playerName || 'Player';
         const loadExisting = data.loadExisting || false;
         
-        // Tạo phòng mới
+        // Tạo phòng mới với 4 member mặc định
         rooms.set(roomCode, {
             host: socket.id,
-            players: [{
-                id: socket.id,
-                name: playerName,
-                isHost: true,
-                score: 0
-            }],
+            players: [
+                {
+                    id: socket.id,
+                    name: playerName,
+                    isHost: true,
+                    score: 0
+                },
+                {
+                    id: 'default-member-1',
+                    name: 'Nhom1',
+                    isHost: false,
+                    score: 0
+                },
+                {
+                    id: 'default-member-2',
+                    name: 'Nhom2',
+                    isHost: false,
+                    score: 0
+                },
+                {
+                    id: 'default-member-3',
+                    name: 'Nhom3',
+                    isHost: false,
+                    score: 0
+                },
+                {
+                    id: 'default-member-4',
+                    name: 'Nhom4',
+                    isHost: false,
+                    score: 0
+                }
+            ],
             createdAt: new Date(),
             quiz: null,
             quizActive: false,
@@ -502,6 +561,22 @@ io.on('connection', (socket) => {
     socket.on('join-room', (data) => {
         const { roomCode, playerName } = data;
         
+        // Kiểm tra xem có phải là tên nhóm mặc định không
+        const defaultGroupNames = ['Nhom1', 'Nhom2', 'Nhom3', 'Nhom4'];
+        let formattedPlayerName = playerName;
+        let isDefaultGroup = false;
+        
+        if (defaultGroupNames.includes(playerName)) {
+            // Nếu là tên nhóm mặc định, giữ nguyên tên
+            formattedPlayerName = playerName;
+            isDefaultGroup = true;
+        } else {
+            // Nếu không phải, thêm prefix "Thầy/Cô: "
+            if (!formattedPlayerName.startsWith('Thầy/Cô: ')) {
+                formattedPlayerName = `Thầy/Cô: ${formattedPlayerName}`;
+            }
+        }
+        
         // Kiểm tra phòng có tồn tại không
         if (!rooms.has(roomCode)) {
             socket.emit('join-error', { message: 'Phòng không tồn tại!' });
@@ -517,59 +592,83 @@ io.on('connection', (socket) => {
             return;
         }
 
-        // Kiểm tra số lượng người chơi (không tính host, tối đa 4 người)
-        const playerCount = room.players.filter(p => !p.isHost).length;
-        if (playerCount >= 4) {
-            socket.emit('join-error', { message: 'Phòng đã đầy! (Tối đa 4 người chơi)' });
-            return;
-        }
-
         // Load điểm đã lưu của player (nếu có)
         let savedScore = 0;
         const hostPlayer = room.players.find(p => p.isHost);
         if (hostPlayer) {
             const scoresData = loadScoresFromFile(hostPlayer.name);
             if (scoresData && scoresData.scores) {
-                const savedPlayerScore = scoresData.scores.find(s => s.name === playerName);
+                const savedPlayerScore = scoresData.scores.find(s => s.name === formattedPlayerName);
                 if (savedPlayerScore) {
                     savedScore = savedPlayerScore.score;
-                    console.log(`Loaded saved score for ${playerName}: ${savedScore} points`);
+                    console.log(`Loaded saved score for ${formattedPlayerName}: ${savedScore} points`);
                 }
             }
         }
 
-        // Thêm người chơi vào phòng với điểm đã lưu
-        room.players.push({
-            id: socket.id,
-            name: playerName || 'Player',
-            isHost: false,
-            score: savedScore
-        });
+        if (isDefaultGroup) {
+            // Nếu là tên nhóm mặc định, thay thế member mặc định tương ứng
+            const defaultMemberIndex = room.players.findIndex(p => p.name === playerName && p.id.startsWith('default-member-'));
+            if (defaultMemberIndex !== -1) {
+                // Thay thế member mặc định
+                room.players[defaultMemberIndex] = {
+                    id: socket.id,
+                    name: formattedPlayerName,
+                    isHost: false,
+                    score: savedScore
+                };
+                console.log(`Replaced default member ${playerName} with real player`);
+            } else {
+                socket.emit('join-error', { message: `Nhóm ${playerName} đã được thay thế!` });
+                return;
+            }
+        } else {
+            // Kiểm tra số lượng người chơi thực tế (không tính host và member mặc định, tối đa 4 người thực)
+            const realPlayerCount = room.players.filter(p => !p.isHost && !p.id.startsWith('default-member-')).length;
+            if (realPlayerCount >= 4) {
+                socket.emit('join-error', { message: 'Phòng đã đầy! (Tối đa 4 người chơi thực)' });
+                return;
+            }
+
+            // Thêm người chơi mới vào phòng
+            room.players.push({
+                id: socket.id,
+                name: formattedPlayerName,
+                isHost: false,
+                score: savedScore
+            });
+        }
 
         // Join socket room
         socket.join(roomCode);
         socket.roomCode = roomCode;
 
-        console.log(`${playerName} joined room: ${roomCode} (Score: ${savedScore})`);
+        if (isDefaultGroup) {
+            console.log(`${formattedPlayerName} replaced default member in room: ${roomCode} (Score: ${savedScore})`);
+        } else {
+            console.log(`${formattedPlayerName} joined room: ${roomCode} (Score: ${savedScore})`);
+        }
 
         // Thông báo cho người chơi đã join thành công
         socket.emit('room-joined', {
             roomCode: roomCode,
-            playerName: playerName,
+            playerName: formattedPlayerName,
             isHost: false,
-            players: room.players,
-            savedScore: savedScore // Gửi điểm đã lưu
+            players: getVisiblePlayers(room.players),
+            savedScore: savedScore, // Gửi điểm đã lưu
+            isDefaultGroup: isDefaultGroup // Thông báo có phải thay thế member mặc định không
         });
 
         // Thông báo cho tất cả người chơi trong phòng
         io.to(roomCode).emit('player-joined', {
             player: {
                 id: socket.id,
-                name: playerName,
+                name: formattedPlayerName,
                 isHost: false,
                 score: savedScore
             },
-            players: room.players
+            players: getVisiblePlayers(room.players),
+            isDefaultGroup: isDefaultGroup // Thông báo có phải thay thế member mặc định không
         });
     });
 
@@ -577,7 +676,8 @@ io.on('connection', (socket) => {
     socket.on('get-players', () => {
         if (socket.roomCode && rooms.has(socket.roomCode)) {
             const room = rooms.get(socket.roomCode);
-            socket.emit('players-list', { players: room.players });
+            const visiblePlayers = getVisiblePlayers(room.players);
+            socket.emit('players-list', { players: visiblePlayers });
         }
     });
 
@@ -673,6 +773,13 @@ io.on('connection', (socket) => {
             
             if (!room.quizActive) {
                 socket.emit('error', { message: 'Quiz không hoạt động!' });
+                return;
+            }
+
+            // Kiểm tra xem người chơi có phải Thầy/Cô không
+            const player = room.players.find(p => p.id === socket.id);
+            if (player && player.name.startsWith('Thầy/Cô: ')) {
+                socket.emit('error', { message: 'Thầy/Cô không thể tham gia quiz!' });
                 return;
             }
 
@@ -814,7 +921,7 @@ io.on('connection', (socket) => {
             const room = rooms.get(socket.roomCode);
             
             const scores = room.players
-                .filter(p => !p.isHost)
+                .filter(p => !p.isHost && !p.id.startsWith('default-member-'))
                 .map(p => ({
                     name: p.name,
                     score: p.score || 0,
@@ -866,7 +973,7 @@ io.on('connection', (socket) => {
                     playerId: playerId,
                     playerName: player.name,
                     newScore: newScore,
-                    players: room.players
+                    players: getVisiblePlayers(room.players)
                 });
 
                 socket.emit('score-update-success', {
@@ -906,7 +1013,7 @@ io.on('connection', (socket) => {
                     io.to(socket.roomCode).emit('player-left', {
                         playerId: socket.id,
                         playerName: playerName,
-                        players: room.players
+                        players: getVisiblePlayers(room.players)
                     });
                 }
             }
@@ -940,7 +1047,7 @@ io.on('connection', (socket) => {
                     io.to(socket.roomCode).emit('player-left', {
                         playerId: socket.id,
                         playerName: playerName,
-                        players: room.players
+                        players: getVisiblePlayers(room.players)
                     });
                 }
 
@@ -985,9 +1092,14 @@ io.on('connection', (socket) => {
             };
             
             // Broadcast đến tất cả members
+            const evaluatedPlayers = getEvaluatedPlayers(room.players);
+            console.log('📋 Evaluation started - evaluatedPlayers:', evaluatedPlayers.map(p => p.name));
+            
             io.to(roomCode).emit('evaluation-started', {
                 setup: setup,
-                players: room.players
+                players: getVisiblePlayers(room.players),
+                evaluablePlayers: getEvaluablePlayers(room.players), // Những người có thể đánh giá (bao gồm Thầy/Cô)
+                evaluatedPlayers: evaluatedPlayers // Những người có thể được đánh giá (không bao gồm Thầy/Cô)
             });
             
             console.log(`Evaluation started for room ${roomCode}`);
@@ -1000,14 +1112,31 @@ io.on('connection', (socket) => {
         const room = rooms.get(roomCode);
         
         if (room && room.host === socket.id) {
+            // Kiểm tra Host không đánh giá Thầy/Cô
+            console.log('🔍 Host evaluation check:', Object.keys(evaluations));
+            const hasEvaluatedTeacher = Object.keys(evaluations).some(memberId => {
+                const member = room.players.find(p => p.id === memberId);
+                const isTeacher = member && member.name.startsWith('Thầy/Cô: ');
+                if (isTeacher) {
+                    console.log('❌ Host trying to evaluate teacher:', member.name);
+                }
+                return isTeacher;
+            });
+            
+            if (hasEvaluatedTeacher) {
+                console.log('🚫 Blocked: Host cannot evaluate teachers');
+                socket.emit('error', { message: 'Host không được đánh giá Thầy/Cô!' });
+                return;
+            }
+            
             room.evaluations.host = evaluations;
             
             console.log('📊 Host evaluation received:', evaluationScores);
             
-            // CỘNG TỔNG ĐIỂM ĐÁNH GIÁ VÀO ĐIỂM TÍCH LŨY HIỆN TẠI
+            // CỘNG TỔNG ĐIỂM ĐÁNH GIÁ VÀO ĐIỂM TÍCH LŨY HIỆN TẠI (chỉ cho những người có thể được đánh giá)
             Object.keys(evaluationScores).forEach(memberId => {
                 const member = room.players.find(p => p.id === memberId);
-                if (member && !member.isHost) {
+                if (member && !member.isHost && !member.name.startsWith('Thầy/Cô: ')) {
                     const currentScore = member.score || 0; // Điểm tích lũy hiện tại
                     const totalEvaluationScore = evaluationScores[memberId]; // Tổng điểm đánh giá
                     const newScore = currentScore + totalEvaluationScore; // Cộng vào điểm tích lũy
@@ -1026,12 +1155,12 @@ io.on('connection', (socket) => {
             }
             
             // Broadcast điểm mới đến tất cả clients
-            io.to(roomCode).emit('players-list', { players: room.players });
+            io.to(roomCode).emit('players-list', { players: getVisiblePlayers(room.players) });
             
             // Broadcast thông báo cập nhật điểm
             io.to(roomCode).emit('evaluation-scores-added', {
                 message: 'Điểm đánh giá đã được cộng vào điểm quiz!',
-                updatedPlayers: room.players.filter(p => !p.isHost)
+                updatedPlayers: room.players.filter(p => !p.isHost && !p.id.startsWith('default-member-'))
             });
             
             console.log(`🎯 Evaluation scores added to quiz scores for room ${roomCode}`);
@@ -1044,14 +1173,25 @@ io.on('connection', (socket) => {
         const room = rooms.get(roomCode);
         
         if (room) {
+            // Kiểm tra member không đánh giá Thầy/Cô
+            const hasEvaluatedTeacher = Object.keys(evaluations).some(memberId => {
+                const member = room.players.find(p => p.id === memberId);
+                return member && member.name.startsWith('Thầy/Cô: ');
+            });
+            
+            if (hasEvaluatedTeacher) {
+                socket.emit('error', { message: 'Các nhóm không được đánh giá Thầy/Cô!' });
+                return;
+            }
+            
             room.evaluations.members[evaluatorId] = evaluations;
             
             console.log('📊 Member evaluation received:', evaluationScores);
             
-            // CỘNG ĐIỂM ĐÁNH GIÁ TỪNG MEMBER VÀO ĐIỂM TÍCH LŨY NGAY LẬP TỨC
+            // CỘNG ĐIỂM ĐÁNH GIÁ TỪNG MEMBER VÀO ĐIỂM TÍCH LŨY NGAY LẬP TỨC (chỉ cho những người có thể được đánh giá)
             Object.keys(evaluationScores).forEach(peerId => {
                 const peer = room.players.find(p => p.id === peerId);
-                if (peer && !peer.isHost) {
+                if (peer && !peer.isHost && !peer.name.startsWith('Thầy/Cô: ')) {
                     const currentScore = peer.score || 0;
                     const memberEvaluationScore = evaluationScores[peerId];
                     const newScore = currentScore + memberEvaluationScore;
@@ -1070,7 +1210,7 @@ io.on('connection', (socket) => {
             }
             
             // Broadcast điểm mới đến tất cả clients
-            io.to(roomCode).emit('players-list', { players: room.players });
+            io.to(roomCode).emit('players-list', { players: getVisiblePlayers(room.players) });
             
             // Broadcast thông báo cập nhật điểm
             const evaluatorPlayer = room.players.find(p => p.id === evaluatorId);
@@ -1158,6 +1298,13 @@ function saveQuizDetails(hostName, roomCode, quizData, results) {
 
 // Lưu chi tiết đánh giá theo member
 function saveEvaluationDetails(hostName, roomCode, evaluationSetup, evaluations, players) {
+    console.log('🚀 saveEvaluationDetails called!');
+    console.log('   - hostName:', hostName);
+    console.log('   - roomCode:', roomCode);
+    console.log('   - evaluationSetup exists:', !!evaluationSetup);
+    console.log('   - evaluations exists:', !!evaluations);
+    console.log('   - players count:', players?.length);
+    
     try {
         console.log('💾 Saving evaluation details...');
         console.log(`   - Host: ${hostName}`);
@@ -1186,7 +1333,7 @@ function saveEvaluationDetails(hostName, roomCode, evaluationSetup, evaluations,
         }
         
         // Tính chi tiết đánh giá cho từng member
-        const members = players.filter(p => !p.isHost);
+        const members = getEvaluatedPlayers(players);
         console.log(`   - Processing ${members.length} members`);
         const memberDetails = members.map(member => {
             // Đánh giá từ host
@@ -1208,10 +1355,19 @@ function saveEvaluationDetails(hostName, roomCode, evaluationSetup, evaluations,
                 };
             });
             
-            // Đánh giá từ peers
+            // Đánh giá từ peers (loại bỏ tự đánh giá, member mặc định và không tính điểm từ việc đánh giá Thầy/Cô)
             const peerEvaluations = [];
             Object.keys(evaluations.members).forEach(evaluatorId => {
+                // Bỏ qua nếu người đánh giá chính là người được đánh giá hoặc là member mặc định
+                if (evaluatorId === member.id || evaluatorId.startsWith('default-member-')) {
+                    return;
+                }
+                
+                // Bỏ qua nếu người đánh giá là Thầy/Cô
                 const evaluator = players.find(p => p.id === evaluatorId);
+                if (evaluator && evaluator.name.startsWith('Thầy/Cô: ')) {
+                    return;
+                }
                 const peerEval = evaluations.members[evaluatorId][member.id] || {};
                 
                 const peerDetails = evaluationSetup.memberCriteria.map(criteria => {
@@ -1266,7 +1422,9 @@ function saveEvaluationDetails(hostName, roomCode, evaluationSetup, evaluations,
         });
         
         const totalMembers = members.length;
-        const totalEvaluators = Object.keys(evaluations.members).length;
+        // Tính số người đánh giá thực sự (chỉ tính những người có thể đánh giá, không tính Thầy/Cô)
+        const evaluablePlayers = getEvaluablePlayers(players).filter(p => !p.name.startsWith('Thầy/Cô: '));
+        const totalEvaluators = evaluablePlayers.length;
         const avgHostScore = totalMembers > 0 
             ? memberDetails.reduce((sum, m) => sum + m.hostEvaluation.totalScore, 0) / totalMembers 
             : 0;
@@ -1311,11 +1469,51 @@ function saveEvaluationDetails(hostName, roomCode, evaluationSetup, evaluations,
 
 // Kiểm tra và tính kết quả khi tất cả đã đánh giá
 function checkEvaluationComplete(room, roomCode) {
-    const totalMembers = room.players.filter(p => !p.isHost).length;
-    const submittedCount = Object.keys(room.evaluations.members).length;
+    // Kiểm tra hoàn thành đánh giá: Host đã đánh giá và tất cả người có thể đánh giá (không tính Thầy/Cô) đã đánh giá đủ
+    const evaluablePlayers = getEvaluablePlayers(room.players).filter(p => !p.name.startsWith('Thầy/Cô: '));
+    const evaluatedPlayers = getEvaluatedPlayers(room.players);
     
-    if (room.evaluations.host && submittedCount === totalMembers) {
+    // Kiểm tra Host đã đánh giá chưa
+    if (!room.evaluations.host) {
+        return;
+    }
+    
+    // Kiểm tra tất cả người có thể đánh giá (không tính Thầy/Cô) đã đánh giá đủ chưa
+    let allEvaluationsComplete = true;
+    
+    console.log('🔍 Checking evaluation completion:');
+    console.log('   - evaluablePlayers:', evaluablePlayers.map(p => p.name));
+    console.log('   - evaluatedPlayers:', evaluatedPlayers.map(p => p.name));
+    
+    evaluablePlayers.forEach(evaluator => {
+        const evaluatorId = evaluator.id;
+        const evaluatorEvaluations = room.evaluations.members[evaluatorId] || {};
+        
+        console.log(`   - Checking ${evaluator.name} (${evaluatorId}):`);
+        console.log(`     - Evaluations:`, Object.keys(evaluatorEvaluations));
+        
+        // Kiểm tra người này đã đánh giá đủ tất cả các nhóm online chưa
+        const hasEvaluatedAll = evaluatedPlayers.every(target => {
+            const hasEvaluated = evaluatorEvaluations[target.id] !== undefined;
+            console.log(`     - ${target.name}: ${hasEvaluated ? '✅' : '❌'}`);
+            return hasEvaluated;
+        });
+        
+        console.log(`     - Has evaluated all: ${hasEvaluatedAll}`);
+        
+        if (!hasEvaluatedAll) {
+            allEvaluationsComplete = false;
+        }
+    });
+    
+    console.log('   - Final allEvaluationsComplete:', allEvaluationsComplete);
+    
+    if (allEvaluationsComplete) {
         console.log('📊 All evaluations submitted. Finalizing results...');
+        console.log('🔍 Debug info:');
+        console.log('   - evaluablePlayers count:', evaluablePlayers.length);
+        console.log('   - evaluatedPlayers count:', evaluatedPlayers.length);
+        console.log('   - allEvaluationsComplete:', allEvaluationsComplete);
         
         // Điểm đã được cộng ngay khi mỗi member submit rồi
         // Chỉ cần tính kết quả chi tiết và broadcast
@@ -1330,7 +1528,21 @@ function checkEvaluationComplete(room, roomCode) {
             saveEvaluationResults(hostPlayer.name, roomCode, results);
             
             // Lưu chi tiết đánh giá
-            saveEvaluationDetails(hostPlayer.name, roomCode, room.evaluationSetup, room.evaluations, room.players);
+            console.log('🔍 Attempting to save evaluation details...');
+            console.log('   - Host player:', hostPlayer.name);
+            console.log('   - Room code:', roomCode);
+            console.log('   - Evaluation setup exists:', !!room.evaluationSetup);
+            console.log('   - Evaluations exists:', !!room.evaluations);
+            console.log('   - Players count:', room.players.length);
+            
+            try {
+                const saveResult = saveEvaluationDetails(hostPlayer.name, roomCode, room.evaluationSetup, room.evaluations, room.players);
+                console.log('   - Save result:', saveResult);
+            } catch (error) {
+                console.error('   - Error saving evaluation details:', error);
+            }
+        } else {
+            console.log('   - No host player found!');
         }
         
         // Broadcast kết quả
@@ -1341,7 +1553,7 @@ function checkEvaluationComplete(room, roomCode) {
         // Broadcast thông báo hoàn thành
         io.to(roomCode).emit('all-evaluations-complete', {
             message: 'Tất cả đánh giá đã hoàn thành! Điểm đã được cộng vào.',
-            players: room.players
+            players: getVisiblePlayers(room.players)
         });
         
         console.log(`🎯 All evaluations complete for room ${roomCode}`);
@@ -1354,7 +1566,7 @@ function calculateEvaluationResults(room) {
     const { evaluationSetup, evaluations, players } = room;
     
     // Lấy danh sách members (không bao gồm host)
-    const members = players.filter(p => !p.isHost);
+    const members = getEvaluatedPlayers(players);
     
     members.forEach(member => {
         // Điểm từ host (đã được cộng vào score)
@@ -1368,9 +1580,21 @@ function calculateEvaluationResults(room) {
             }
         });
         
-        // Điểm từ peers
+        // Điểm từ peers (loại bỏ tự đánh giá, member mặc định và không tính điểm từ việc đánh giá Thầy/Cô)
         let peerScores = [];
-        Object.values(evaluations.members).forEach(peerEval => {
+        Object.keys(evaluations.members).forEach(evaluatorId => {
+            // Bỏ qua nếu người đánh giá chính là người được đánh giá hoặc là member mặc định
+            if (evaluatorId === member.id || evaluatorId.startsWith('default-member-')) {
+                return;
+            }
+            
+            // Bỏ qua nếu người đánh giá là Thầy/Cô
+            const evaluator = players.find(p => p.id === evaluatorId);
+            if (evaluator && evaluator.name.startsWith('Thầy/Cô: ')) {
+                return;
+            }
+            
+            const peerEval = evaluations.members[evaluatorId];
             const peerRating = peerEval[member.id];
             if (peerRating) {
                 let peerScore = 0;

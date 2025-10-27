@@ -576,11 +576,11 @@
             <div class="input-group">
                 <label>Tên của bạn:</label>
                 <input type="text" id="playerName" placeholder="Nhập tên của bạn">
-            </div>
+        </div>
             <div class="input-group">
                 <label>Mã phòng (6 ký tự):</label>
                 <input type="text" id="roomCodeInput" placeholder="Nhập mã phòng" maxlength="6" style="text-transform: uppercase;">
-            </div>
+    </div>
             <div style="text-align: center;">
                 <button class="btn btn-success" onclick="createRoom()">Tạo phòng</button>
                 <button class="btn" onclick="joinRoom()">Tham gia phòng</button>
@@ -1892,12 +1892,12 @@
             });
 
             // Host chuyển sang màn hình đánh giá
-            renderHostEvaluationForm();
+            renderHostEvaluationForm(window.evaluatedPlayers);
             showScreen('hostEvaluationScreen');
         }
 
         // Render form đánh giá của host
-        function renderHostEvaluationForm() {
+        function renderHostEvaluationForm(evaluatedPlayers) {
             const form = document.getElementById('hostEvaluationForm');
             
             form.innerHTML = `
@@ -1910,12 +1910,17 @@
                 <div id="hostEvalMembers"></div>
             `;
 
-            // Lấy danh sách players từ server
-            socket.emit('get-players');
+            // Sử dụng evaluatedPlayers từ server thay vì gọi get-players
+            if (evaluatedPlayers) {
+                renderHostEvaluationWithPlayers(evaluatedPlayers);
+            } else {
+                // Fallback: Lấy danh sách players từ server
+                socket.emit('get-players');
+            }
         }
 
         // Render form đánh giá của member
-        function renderMemberEvaluationForm() {
+        function renderMemberEvaluationForm(evaluatedPlayers) {
             const form = document.getElementById('memberEvaluationForm');
             
             form.innerHTML = `
@@ -1925,8 +1930,13 @@
                 <div id="memberEvalPeers"></div>
             `;
             
-            // Lấy danh sách players từ server
-            socket.emit('get-players');
+            // Sử dụng evaluatedPlayers từ server thay vì gọi get-players
+            if (evaluatedPlayers) {
+                renderMemberEvaluationWithPlayers(evaluatedPlayers);
+            } else {
+                // Fallback: Lấy danh sách players từ server
+                socket.emit('get-players');
+            }
         }
         
         // Render member evaluation form với players data
@@ -1934,8 +1944,8 @@
             const peersContainer = document.getElementById('memberEvalPeers');
             if (!peersContainer) return;
             
-            // Lọc ra members (không bao gồm host và chính mình)
-            const peers = players.filter(p => !p.isHost && p.name !== currentPlayer);
+            // Lọc ra members (không bao gồm host, chính mình và Thầy/Cô)
+            const peers = players.filter(p => !p.isHost && p.name !== currentPlayer && !p.name.startsWith('Thầy/Cô: '));
             
             if (peers.length === 0) {
                 peersContainer.innerHTML = '<p style="text-align: center; color: #999;">Không có thành viên nào để đánh giá</p>';
@@ -2154,9 +2164,12 @@
         socket.on('evaluation-started', (data) => {
             evaluationSetup = data.setup;
             
+            // Lưu evaluatedPlayers để sử dụng sau
+            window.evaluatedPlayers = data.evaluatedPlayers;
+            
             if (!isHost) {
                 // Member nhận thông báo bắt đầu đánh giá
-                renderMemberEvaluationForm();
+                renderMemberEvaluationForm(data.evaluatedPlayers);
                 showScreen('memberEvaluationScreen');
             }
         });
@@ -2233,13 +2246,13 @@
             const membersContainer = document.getElementById('hostEvalMembers');
             if (!membersContainer) return;
 
-            // Lọc ra members (không bao gồm host)
-            const members = players.filter(p => !p.isHost);
+            // Lọc ra members (không bao gồm host và Thầy/Cô)
+            const members = players.filter(p => !p.isHost && !p.name.startsWith('Thầy/Cô: '));
             
             if (members.length === 0) {
                 membersContainer.innerHTML = `
                     <div style="text-align: center; padding: 40px; color: #666;">
-                        <h3>⚠️ Chưa có member nào</h3>
+                        <h3>⚠️ Chưa có member nào để đánh giá</h3>
                         <p>Vui lòng đợi members tham gia phòng trước khi đánh giá.</p>
                     </div>
                 `;

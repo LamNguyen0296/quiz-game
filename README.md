@@ -352,3 +352,6 @@ Mọi đóng góp đều được chào đón!
 💡 **Tips**: Mở nhiều tab để test tính năng multiplayer!
 
 🌟 **Star** repo này nếu bạn thấy hữu ích!
+
+netstat -ano | findstr :3009
+taskkill /PID 14604 /F
