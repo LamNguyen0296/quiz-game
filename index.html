@@ -613,6 +613,183 @@
         #createRoomType:checked + span {
             color: white !important;
         }
+
+        /* Video control buttons */
+        #videoPlayButton:hover {
+            background: rgba(0,0,0,0.9) !important;
+            transform: translate(-50%, -50%) scale(1.1);
+        }
+
+        #videoUnmuteButton:hover {
+            background: rgba(0,0,0,0.9) !important;
+            transform: scale(1.05);
+        }
+
+        /* Mobile video optimization */
+        @media (max-width: 768px) {
+            #questionVideo {
+                max-height: 250px !important;
+            }
+            
+            #videoPlayButton {
+                width: 80px !important;
+                height: 80px !important;
+                font-size: 32px !important;
+            }
+            
+            #videoUnmuteButton {
+                font-size: 12px !important;
+                padding: 6px 10px !important;
+            }
+        }
+
+        /* Submission notification popup */
+        .submission-notification {
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            box-shadow: 0 8px 25px rgba(67, 233, 123, 0.4);
+            z-index: 1000;
+            transform: translateX(400px);
+            transition: transform 0.5s ease-in-out;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(10px);
+            max-width: 300px;
+            word-wrap: break-word;
+        }
+
+        .submission-notification.show {
+            transform: translateX(0);
+        }
+
+        .submission-notification .icon {
+            font-size: 1.2rem;
+            margin-right: 8px;
+        }
+
+        .submission-notification .group-name {
+            font-weight: 700;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+        }
+
+        /* Evaluation notification popup */
+        .evaluation-notification {
+            position: fixed;
+            bottom: 140px;
+            right: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+            z-index: 1000;
+            transform: translateX(400px);
+            transition: transform 0.5s ease-in-out;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(10px);
+            max-width: 320px;
+            word-wrap: break-word;
+        }
+
+        .evaluation-notification.show {
+            transform: translateX(0);
+        }
+
+        .evaluation-notification .icon {
+            font-size: 1.2rem;
+            margin-right: 8px;
+        }
+
+        .evaluation-notification .group-name {
+            font-weight: 700;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+        }
+
+        .evaluation-notification .evaluation-count {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 700;
+            margin-left: 4px;
+        }
+
+        /* Host evaluation notification popup */
+        .host-evaluation-notification {
+            position: fixed;
+            bottom: 200px;
+            right: 20px;
+            background: linear-gradient(135deg, #ff6b6b 0%, #ffa500 100%);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            box-shadow: 0 8px 25px rgba(255, 107, 107, 0.4);
+            z-index: 1000;
+            transform: translateX(400px);
+            transition: transform 0.5s ease-in-out;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(10px);
+            max-width: 300px;
+            word-wrap: break-word;
+        }
+
+        .host-evaluation-notification.show {
+            transform: translateX(0);
+        }
+
+        .host-evaluation-notification .icon {
+            font-size: 1.2rem;
+            margin-right: 8px;
+        }
+
+        .host-evaluation-notification .message {
+            font-weight: 700;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+        }
+
+        .host-evaluation-notification .score-info {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 700;
+            margin-left: 8px;
+        }
+
+        /* Mobile responsive for notifications */
+        @media (max-width: 768px) {
+            .submission-notification {
+                right: 10px;
+                bottom: 70px;
+                max-width: calc(100vw - 20px);
+                font-size: 0.9rem;
+                padding: 12px 16px;
+            }
+            
+            .evaluation-notification {
+                right: 10px;
+                bottom: 130px;
+                max-width: calc(100vw - 20px);
+                font-size: 0.9rem;
+                padding: 12px 16px;
+            }
+            
+            .host-evaluation-notification {
+                right: 10px;
+                bottom: 190px;
+                max-width: calc(100vw - 20px);
+                font-size: 0.9rem;
+                padding: 12px 16px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -623,6 +800,26 @@
     
     <!-- Host Name Display - Permanent Top Bar -->
     <div class="host-name-permanent" id="hostNamePermanent"></div>
+    
+    <!-- Submission Notification Popup -->
+    <div class="submission-notification" id="submissionNotification" style="display: none;">
+        <span class="icon">📝</span>
+        <span class="group-name" id="submissionGroupName">Nhóm 1: Văn A</span> đã nộp bài
+    </div>
+    
+    <!-- Evaluation Notification Popup -->
+    <div class="evaluation-notification" id="evaluationNotification" style="display: none;">
+        <span class="icon">⭐</span>
+        <span class="group-name" id="evaluationGroupName">Nhóm 1: Văn A</span> đã hoàn thành đánh giá
+        <span class="evaluation-count" id="evaluationCount">3</span> người
+    </div>
+    
+    <!-- Host Evaluation Notification Popup -->
+    <div class="host-evaluation-notification" id="hostEvaluationNotification" style="display: none;">
+        <span class="icon">👑</span>
+        <span class="message" id="hostEvaluationMessage">Host đã đánh giá bạn!</span>
+        <span class="score-info" id="hostEvaluationScore">+8 điểm</span>
+    </div>
 
     <div class="container">
         <!-- Welcome Screen -->
@@ -1113,7 +1310,8 @@
             
             // Cập nhật điểm của người chơi hiện tại
             if (!isHost && currentPlayer) {
-                const currentPlayerData = data.players.find(p => p.name === currentPlayer);
+                // Tìm player data bằng cách so sánh ID thay vì tên để tránh lỗi với nhóm
+                const currentPlayerData = data.players.find(p => p.id === socket.id);
                 if (currentPlayerData) {
                     currentPlayerScore = currentPlayerData.score || 0;
                     updateConnectionStatus(true);
@@ -1145,7 +1343,7 @@
             
             // Cập nhật điểm của người chơi hiện tại
             if (!isHost && currentPlayer) {
-                const currentPlayerData = data.players.find(p => p.name === currentPlayer);
+                const currentPlayerData = data.players.find(p => p.id === socket.id);
                 if (currentPlayerData) {
                     currentPlayerScore = currentPlayerData.score || 0;
                     updateConnectionStatus(true);
@@ -1167,7 +1365,7 @@
             
             // Cập nhật điểm của người chơi hiện tại
             if (!isHost && currentPlayer) {
-                const currentPlayerData = data.players.find(p => p.name === currentPlayer);
+                const currentPlayerData = data.players.find(p => p.id === socket.id);
                 if (currentPlayerData) {
                     currentPlayerScore = currentPlayerData.score || 0;
                     updateConnectionStatus(true);
@@ -1198,7 +1396,7 @@
                 const editButton = isHost ? `<button onclick="editPlayerScore('${p.id}', '${p.name}', ${score})" style="background: #ffa500; color: white; border: none; padding: 6px 12px; border-radius: 6px; margin-left: 10px; cursor: pointer; font-size: 0.9rem; font-weight: 600; box-shadow: 0 2px 8px rgba(255,165,0,0.3);">✏️ Sửa</button>` : '';
                 
                 // Highlight màu vàng nếu là current player
-                const isCurrentPlayer = !isHost && p.name === currentPlayer;
+                const isCurrentPlayer = !isHost && p.id === socket.id;
                 const highlightBorder = isCurrentPlayer ? 'border: 3px solid #ffd700; box-shadow: 0 4px 15px rgba(255,215,0,0.4);' : '';
                 
                 // Cập nhật currentPlayerScore nếu là người chơi hiện tại
@@ -1543,21 +1741,39 @@
                 if (data.mediaType === 'image') {
                     mediaContainer.innerHTML = `<img src="${data.mediaPath}" style="max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">`;
                 } else if (data.mediaType === 'video') {
-                    mediaContainer.innerHTML = `<video id="questionVideo" src="${data.mediaPath}" controls autoplay style="max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);"></video>`;
+                    mediaContainer.innerHTML = `
+                        <div style="position: relative; display: inline-block;">
+                            <video id="questionVideo" src="${data.mediaPath}" controls muted style="max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);"></video>
+                            <div id="videoPlayButton" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.7); color: white; border: none; border-radius: 50%; width: 60px; height: 60px; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.3s;" onclick="playVideo()">
+                                ▶️
+                            </div>
+                            <div id="videoUnmuteButton" style="position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.7); color: white; border: none; border-radius: 20px; padding: 8px 12px; font-size: 14px; cursor: pointer; display: none;" onclick="unmuteVideo()">
+                                🔊 Bật âm thanh
+                            </div>
+                        </div>
+                    `;
                 }
                 
                 // Insert media before options grid
                 grid.parentNode.insertBefore(mediaContainer, grid);
                 
-                // Auto play video với âm thanh
+                // Auto play video (muted để bypass mobile restriction)
                 if (data.mediaType === 'video') {
                     setTimeout(() => {
                         const videoEl = document.getElementById('questionVideo');
+                        const playButton = document.getElementById('videoPlayButton');
+                        const unmuteButton = document.getElementById('videoUnmuteButton');
+                        
                         if (videoEl) {
-                            videoEl.volume = 1.0; // Set volume 100%
-                            videoEl.play().catch(err => {
-                                console.log('Auto-play prevented:', err);
-                                // Nếu autoplay bị chặn, thử play lại khi user click
+                            // Thử autoplay muted trước
+                            videoEl.play().then(() => {
+                                console.log('Video autoplay successful (muted)');
+                                if (playButton) playButton.style.display = 'none';
+                                if (unmuteButton) unmuteButton.style.display = 'block';
+                            }).catch(err => {
+                                console.log('Auto-play prevented, showing play button:', err);
+                                if (playButton) playButton.style.display = 'flex';
+                                if (unmuteButton) unmuteButton.style.display = 'none';
                             });
                         }
                     }, 100);
@@ -1613,6 +1829,30 @@
             console.log('Answer submitted successfully');
         });
 
+        // Nhận thông báo khi có người nộp bài (chỉ host)
+        socket.on('player-submitted', (data) => {
+            if (isHost) {
+                console.log(`📝 ${data.playerName} đã nộp bài cho câu ${data.questionIndex + 1}`);
+                showSubmissionNotification(data.playerName);
+            }
+        });
+
+        // Nhận thông báo khi có member đánh giá xong (chỉ host)
+        socket.on('member-evaluation-submitted', (data) => {
+            if (isHost) {
+                console.log(`⭐ ${data.evaluatorName} đã hoàn thành đánh giá ${data.evaluatedCount} người`);
+                showEvaluationNotification(data.evaluatorName, data.evaluatedCount);
+            }
+        });
+
+        // Nhận thông báo khi được host đánh giá (chỉ members)
+        socket.on('host-evaluation-received', (data) => {
+            if (!isHost) {
+                console.log(`👑 Host đã đánh giá bạn: +${data.evaluatedScore} điểm, tổng: ${data.newTotalScore} điểm`);
+                showHostEvaluationNotification(data.evaluatedScore, data.newTotalScore);
+            }
+        });
+
         function startTimer(seconds) {
             clearInterval(timerInterval);
             let timeLeft = seconds;
@@ -1666,7 +1906,11 @@
             
             // Cập nhật điểm của người chơi hiện tại
             if (!isHost && currentPlayer) {
-                const myResult = data.results.find(r => r.playerName === currentPlayer);
+                // Tìm kết quả bằng cách so sánh ID thay vì tên để tránh lỗi với nhóm
+                const myResult = data.results.find(r => {
+                    const player = data.players.find(p => p.id === socket.id);
+                    return player && r.playerName === player.name;
+                });
                 if (myResult) {
                     currentPlayerScore = myResult.score || 0;
                     updateConnectionStatus(true);
@@ -1828,7 +2072,7 @@
             console.log(`${data.playerName} score updated to ${data.newScore}`);
             
             // Cập nhật điểm của người chơi hiện tại (nếu là người bị sửa điểm)
-            if (!isHost && currentPlayer === data.playerName) {
+            if (!isHost && socket.id === data.playerId) {
                 currentPlayerScore = data.newScore;
                 updateConnectionStatus(true);
                 updateMyScoreDisplay(true); // Thêm animation
@@ -1848,6 +2092,243 @@
             document.getElementById(screenId).classList.add('active');
         }
 
+        // Video control functions
+        function playVideo() {
+            const videoEl = document.getElementById('questionVideo');
+            const playButton = document.getElementById('videoPlayButton');
+            const unmuteButton = document.getElementById('videoUnmuteButton');
+            
+            if (videoEl) {
+                videoEl.play().then(() => {
+                    console.log('Video play successful');
+                    if (playButton) playButton.style.display = 'none';
+                    if (unmuteButton) unmuteButton.style.display = 'block';
+                }).catch(err => {
+                    console.log('Video play failed:', err);
+                    alert('Không thể phát video. Vui lòng thử lại!');
+                });
+            }
+        }
+
+        function unmuteVideo() {
+            const videoEl = document.getElementById('questionVideo');
+            const unmuteButton = document.getElementById('videoUnmuteButton');
+            
+            if (videoEl) {
+                videoEl.muted = false;
+                videoEl.volume = 1.0;
+                if (unmuteButton) {
+                    unmuteButton.innerHTML = '🔊 Đã bật âm thanh';
+                    unmuteButton.style.background = 'rgba(0,150,0,0.8)';
+                    setTimeout(() => {
+                        unmuteButton.style.display = 'none';
+                    }, 2000);
+                }
+            }
+        }
+
+        // Submission notification functions
+        function showSubmissionNotification(groupName) {
+            const notification = document.getElementById('submissionNotification');
+            const groupNameEl = document.getElementById('submissionGroupName');
+            
+            if (notification && groupNameEl) {
+                groupNameEl.textContent = groupName;
+                notification.style.display = 'block';
+                
+                // Trigger animation
+                setTimeout(() => {
+                    notification.classList.add('show');
+                }, 100);
+                
+                // Play sound
+                playSubmissionSound();
+                
+                // Auto hide after 3 seconds
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                    setTimeout(() => {
+                        notification.style.display = 'none';
+                    }, 500);
+                }, 3000);
+            }
+        }
+
+        function playSubmissionSound() {
+            try {
+                // Tạo âm thanh notification bằng Web Audio API
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // Tạo oscillator cho âm thanh "ding"
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                // Cài đặt âm thanh
+                oscillator.frequency.setValueAtTime(800, audioContext.currentTime); // Tần số 800Hz
+                oscillator.frequency.setValueAtTime(1000, audioContext.currentTime + 0.1); // Tăng lên 1000Hz
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime); // Volume 30%
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3); // Fade out
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.3);
+                
+                console.log('🔊 Submission sound played');
+            } catch (error) {
+                console.log('⚠️ Could not play submission sound:', error);
+                // Fallback: thử dùng HTML5 Audio nếu có file âm thanh
+                try {
+                    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBS13yO/eizEIHWq+8+OWT');
+                    audio.volume = 0.3;
+                    audio.play().catch(() => {
+                        console.log('⚠️ HTML5 audio also failed');
+                    });
+                } catch (e) {
+                    console.log('⚠️ All audio methods failed');
+                }
+            }
+        }
+
+        // Evaluation notification functions
+        function showEvaluationNotification(evaluatorName, evaluatedCount) {
+            const notification = document.getElementById('evaluationNotification');
+            const evaluatorNameEl = document.getElementById('evaluationGroupName');
+            const evaluationCountEl = document.getElementById('evaluationCount');
+            
+            if (notification && evaluatorNameEl && evaluationCountEl) {
+                evaluatorNameEl.textContent = evaluatorName;
+                evaluationCountEl.textContent = evaluatedCount;
+                notification.style.display = 'block';
+                
+                // Trigger animation
+                setTimeout(() => {
+                    notification.classList.add('show');
+                }, 100);
+                
+                // Play sound
+                playEvaluationSound();
+                
+                // Auto hide after 4 seconds (lâu hơn submission vì có nhiều thông tin hơn)
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                    setTimeout(() => {
+                        notification.style.display = 'none';
+                    }, 500);
+                }, 4000);
+            }
+        }
+
+        function playEvaluationSound() {
+            try {
+                // Tạo âm thanh notification bằng Web Audio API - âm thanh khác với submission
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // Tạo oscillator cho âm thanh "star" (cao hơn và dài hơn)
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                // Cài đặt âm thanh - âm thanh cao hơn và có 2 nốt
+                oscillator.frequency.setValueAtTime(1000, audioContext.currentTime); // Tần số 1000Hz
+                oscillator.frequency.setValueAtTime(1200, audioContext.currentTime + 0.1); // Tăng lên 1200Hz
+                oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.2); // Xuống 800Hz
+                
+                gainNode.gain.setValueAtTime(0.25, audioContext.currentTime); // Volume 25%
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4); // Fade out
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.4);
+                
+                console.log('🔊 Evaluation sound played');
+            } catch (error) {
+                console.log('⚠️ Could not play evaluation sound:', error);
+                // Fallback: thử dùng HTML5 Audio nếu có file âm thanh
+                try {
+                    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBS13yO/eizEIHWq+8+OWT');
+                    audio.volume = 0.25;
+                    audio.play().catch(() => {
+                        console.log('⚠️ HTML5 audio also failed');
+                    });
+                } catch (e) {
+                    console.log('⚠️ All audio methods failed');
+                }
+            }
+        }
+
+        // Host evaluation notification functions
+        function showHostEvaluationNotification(evaluatedScore, newTotalScore) {
+            const notification = document.getElementById('hostEvaluationNotification');
+            const messageEl = document.getElementById('hostEvaluationMessage');
+            const scoreEl = document.getElementById('hostEvaluationScore');
+            
+            if (notification && messageEl && scoreEl) {
+                messageEl.textContent = 'Host đã đánh giá bạn!';
+                scoreEl.textContent = `+${evaluatedScore} điểm`;
+                notification.style.display = 'block';
+                
+                // Trigger animation
+                setTimeout(() => {
+                    notification.classList.add('show');
+                }, 100);
+                
+                // Play sound
+                playHostEvaluationSound();
+                
+                // Auto hide after 4 seconds
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                    setTimeout(() => {
+                        notification.style.display = 'none';
+                    }, 500);
+                }, 4000);
+            }
+        }
+
+        function playHostEvaluationSound() {
+            try {
+                // Tạo âm thanh notification bằng Web Audio API - âm thanh đặc biệt cho host evaluation
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // Tạo oscillator cho âm thanh "crown" (âm thanh vương miện)
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                // Cài đặt âm thanh - âm thanh đặc biệt cho host evaluation
+                oscillator.frequency.setValueAtTime(1200, audioContext.currentTime); // Tần số 1200Hz
+                oscillator.frequency.setValueAtTime(1400, audioContext.currentTime + 0.1); // Tăng lên 1400Hz
+                oscillator.frequency.setValueAtTime(1000, audioContext.currentTime + 0.2); // Xuống 1000Hz
+                oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.3); // Xuống 800Hz
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime); // Volume 30%
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5); // Fade out
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.5);
+                
+                console.log('🔊 Host evaluation sound played');
+            } catch (error) {
+                console.log('⚠️ Could not play host evaluation sound:', error);
+                // Fallback: thử dùng HTML5 Audio nếu có file âm thanh
+                try {
+                    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBS13yO/eizEIHWq+8+OWT');
+                    audio.volume = 0.3;
+                    audio.play().catch(() => {
+                        console.log('⚠️ HTML5 audio also failed');
+                    });
+                } catch (e) {
+                    console.log('⚠️ All audio methods failed');
+                }
+            }
+        }
+
         // Auto uppercase room code
         document.getElementById('roomCodeInput').addEventListener('input', (e) => {
             e.target.value = e.target.value.toUpperCase();
@@ -1855,6 +2336,9 @@
 
         // Handle player type selection
         document.addEventListener('DOMContentLoaded', function() {
+            // Khởi tạo evaluation setup mặc định
+            initializeDefaultEvaluation();
+            
             const createRoomType = document.getElementById('createRoomType');
             const joinRoomType = document.getElementById('joinRoomType');
             const roomCodeSection = document.getElementById('roomCodeSection');
@@ -1951,10 +2435,10 @@
                     { id: 4, name: 'Đóng góp ý kiến', weight: 25, maxScore: 10 }
                 ],
                 ratingLevels: [
-                    { id: 1, name: 'Xuất sắc', emoji: '😍' },
-                    { id: 2, name: 'Tốt', emoji: '😊' },
-                    { id: 3, name: 'Đạt', emoji: '😐' },
-                    { id: 4, name: 'Cần cố gắng', emoji: '😔' }
+                    { id: 4, name: 'Xuất sắc', emoji: '😍' },
+                    { id: 3, name: 'Tốt', emoji: '😊' },
+                    { id: 2, name: 'Đạt', emoji: '😐' },
+                    { id: 1, name: 'Cần cố gắng', emoji: '😔' }
                 ]
             };
             evaluationLoaded = true;
@@ -2159,8 +2643,15 @@
             const peersContainer = document.getElementById('memberEvalPeers');
             if (!peersContainer) return;
             
+            // Đảm bảo evaluationSetup đã được load
+            if (!evaluationSetup || !evaluationSetup.memberCriteria || evaluationSetup.memberCriteria.length === 0) {
+                console.log('⚠️ Evaluation setup chưa được load, đang khởi tạo mặc định...');
+                initializeDefaultEvaluation();
+            }
+            
             // Lọc ra members (không bao gồm host, chính mình và Thầy/Cô)
-            const peers = players.filter(p => !p.isHost && p.name !== currentPlayer && !p.name.startsWith('Thầy/Cô: '));
+            // Cho phép các nhóm tự đánh giá bằng cách so sánh ID thay vì tên
+            const peers = players.filter(p => !p.isHost && p.id !== socket.id && !p.name.startsWith('Thầy/Cô: '));
             
             if (peers.length === 0) {
                 peersContainer.innerHTML = '<p style="text-align: center; color: #999;">Không có thành viên nào để đánh giá</p>';
@@ -2274,6 +2765,9 @@
                         // Cộng điểm theo công thức: (maxScore/4) × id
                         const actualScore = (criteria.maxScore / 4) * levelId;
                         evaluationScores[memberId] += actualScore;
+                        
+                        // Debug log
+                        console.log(`🔍 Debug evaluation: ${criteria.name} - levelId: ${levelId}, maxScore: ${criteria.maxScore}, actualScore: ${actualScore}`);
                     }
                 });
             });
@@ -2401,7 +2895,7 @@
             
             // Cập nhật điểm cho người chơi hiện tại nếu cần
             if (!isHost && currentPlayer) {
-                const updatedPlayer = data.updatedPlayers?.find(p => p.name === currentPlayer);
+                const updatedPlayer = data.updatedPlayers?.find(p => p.id === socket.id);
                 if (updatedPlayer) {
                     currentPlayerScore = updatedPlayer.score;
                     updateConnectionStatus(true);
@@ -2416,7 +2910,7 @@
             
             // Cập nhật điểm cho người chơi hiện tại nếu cần
             if (!isHost && currentPlayer) {
-                const updatedPlayer = data.updatedPlayers?.find(p => p.name === currentPlayer);
+                const updatedPlayer = data.updatedPlayers?.find(p => p.id === socket.id);
                 if (updatedPlayer) {
                     currentPlayerScore = updatedPlayer.score;
                     updateConnectionStatus(true);
@@ -2431,7 +2925,7 @@
             
             // Cập nhật điểm cho người chơi hiện tại nếu cần
             if (!isHost && currentPlayer) {
-                const updatedPlayer = data.updatedPlayers?.find(p => p.name === currentPlayer);
+                const updatedPlayer = data.updatedPlayers?.find(p => p.id === socket.id);
                 if (updatedPlayer) {
                     currentPlayerScore = updatedPlayer.score;
                     updateConnectionStatus(true);
@@ -2460,6 +2954,15 @@
         function renderHostEvaluationWithPlayers(players) {
             const membersContainer = document.getElementById('hostEvalMembers');
             if (!membersContainer) return;
+
+            // Đảm bảo evaluationSetup đã được load
+            if (!evaluationSetup || !evaluationSetup.hostCriteria || evaluationSetup.hostCriteria.length === 0) {
+                console.log('⚠️ Evaluation setup chưa được load, đang khởi tạo mặc định...');
+                initializeDefaultEvaluation();
+            }
+            
+            // Debug log để kiểm tra ratingLevels
+            console.log('🔍 Rating levels:', evaluationSetup.ratingLevels);
 
             // Lọc ra members (không bao gồm host và Thầy/Cô)
             const members = players.filter(p => !p.isHost && !p.name.startsWith('Thầy/Cô: '));
@@ -2533,7 +3036,12 @@
             if (scoreElement) {
                 // Công thức: số điểm = (maxScore/4) × id
                 const actualScore = (maxScore / 4) * levelId;
-                scoreElement.textContent = `Điểm: ${actualScore.toFixed(1)} / ${maxScore}`;
+                // Hiển thị điểm số đẹp hơn (loại bỏ .0 nếu không cần thiết)
+                const displayScore = actualScore % 1 === 0 ? actualScore.toString() : actualScore.toFixed(1);
+                scoreElement.textContent = `Điểm: ${displayScore} / ${maxScore}`;
+                
+                // Debug log
+                console.log(`🔍 UI Debug: memberId: ${memberId}, criteriaId: ${criteriaId}, levelId: ${levelId}, maxScore: ${maxScore}, actualScore: ${actualScore}`);
             }
             
             // Update total score
@@ -2557,7 +3065,9 @@
             const totalElement = document.getElementById(`total_eval_${memberId}`);
             const maxElement = document.getElementById(`max_eval_${memberId}`);
             
-            if (totalElement) totalElement.textContent = totalScore.toFixed(1);
+            // Hiển thị tổng điểm đẹp hơn (loại bỏ .0 nếu không cần thiết)
+            const displayTotalScore = totalScore % 1 === 0 ? totalScore.toString() : totalScore.toFixed(1);
+            if (totalElement) totalElement.textContent = displayTotalScore;
             if (maxElement) maxElement.textContent = maxTotal;
         }
 

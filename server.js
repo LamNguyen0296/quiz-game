@@ -145,6 +145,34 @@ function saveScoresToFile(hostName, roomCode, players) {
     }
 }
 
+// Lưu logs đánh giá
+function saveEvaluationLogs(hostName, roomCode, evaluations) {
+    try {
+        const filePath = getEvaluationLogsFilePath(hostName);
+        
+        const data = {
+            hostName: hostName,
+            roomCode: roomCode,
+            evaluations: evaluations,
+            savedAt: new Date().toISOString(),
+            lastUpdated: new Date().toISOString()
+        };
+
+        fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+        console.log(`📊 Evaluation logs saved for ${hostName}`);
+        return true;
+    } catch (error) {
+        console.error('❌ Error saving evaluation logs:', error);
+        return false;
+    }
+}
+
+// Lấy đường dẫn file logs đánh giá
+function getEvaluationLogsFilePath(hostName) {
+    const fileName = `${hostName.toLowerCase().replace(/[^a-z0-9]/g, '')}-evaluation-logs.json`;
+    return path.join(__dirname, 'quizzes', fileName);
+}
+
 function loadScoresFromFile(hostName) {
     try {
         const filePath = getScoresFilePath(hostName);
@@ -843,6 +871,17 @@ io.on('connection', (socket) => {
 
                 console.log(`Answer received from ${socket.id} for question ${questionIndex}: ${answer}`);
                 socket.emit('answer-submitted', { success: true });
+                
+                // Thông báo cho host khi có người nộp bài
+                if (room.host) {
+                    const player = room.players.find(p => p.id === socket.id);
+                    if (player) {
+                        io.to(room.host).emit('player-submitted', {
+                            playerName: player.name,
+                            questionIndex: questionIndex
+                        });
+                    }
+                }
             }
         }
     });
@@ -1217,6 +1256,23 @@ io.on('connection', (socket) => {
             
             console.log('📊 Host evaluation received:', evaluationScores);
             
+            // Log chi tiết đánh giá của host
+            console.log('🔍 Host evaluation details:');
+            Object.keys(evaluations).forEach(memberId => {
+                const member = room.players.find(p => p.id === memberId);
+                if (member) {
+                    console.log(`   👤 ${member.name}:`);
+                    Object.keys(evaluations[memberId]).forEach(criteriaId => {
+                        const criteria = room.evaluationSetup?.hostCriteria?.find(c => c.id == criteriaId);
+                        const levelId = evaluations[memberId][criteriaId];
+                        const level = room.evaluationSetup?.ratingLevels?.find(l => l.id === levelId);
+                        const score = criteria ? (criteria.maxScore / 4) * levelId : 0;
+                        
+                        console.log(`      📋 ${criteria?.name || 'Unknown'}: ${level?.name || 'Unknown'} (${levelId}) = ${score}/${criteria?.maxScore || 0} điểm`);
+                    });
+                }
+            });
+            
             // CỘNG TỔNG ĐIỂM ĐÁNH GIÁ VÀO ĐIỂM TÍCH LŨY HIỆN TẠI (chỉ cho những người có thể được đánh giá)
             Object.keys(evaluationScores).forEach(memberId => {
                 const member = room.players.find(p => p.id === memberId);
@@ -1228,6 +1284,13 @@ io.on('connection', (socket) => {
                     member.score = newScore;
                     
                     console.log(`✅ Score updated for ${member.name}: ${currentScore} (tích lũy) + ${totalEvaluationScore} (đánh giá) = ${newScore}`);
+                    
+                    // Thông báo cho member khi được host đánh giá
+                    io.to(memberId).emit('host-evaluation-received', {
+                        evaluatorName: 'Giáo viên',
+                        evaluatedScore: totalEvaluationScore,
+                        newTotalScore: newScore
+                    });
                 }
             });
             
@@ -1235,6 +1298,8 @@ io.on('connection', (socket) => {
             const hostPlayer = room.players.find(p => p.isHost);
             if (hostPlayer) {
                 saveScoresToFile(hostPlayer.name, roomCode, room.players);
+                // Lưu logs đánh giá
+                saveEvaluationLogs(hostPlayer.name, roomCode, room.evaluations);
                 console.log(`💾 Scores saved to file for ${hostPlayer.name}`);
             }
             
@@ -1272,6 +1337,34 @@ io.on('connection', (socket) => {
             
             console.log('📊 Member evaluation received:', evaluationScores);
             
+            // Log chi tiết đánh giá của member
+            const evaluatorPlayer = room.players.find(p => p.id === evaluatorId);
+            console.log(`🔍 Member evaluation details from ${evaluatorPlayer?.name || 'Unknown'}:`);
+            Object.keys(evaluations).forEach(peerId => {
+                const peer = room.players.find(p => p.id === peerId);
+                if (peer) {
+                    console.log(`   👤 ${peer.name}:`);
+                    Object.keys(evaluations[peerId]).forEach(criteriaId => {
+                        const criteria = room.evaluationSetup?.memberCriteria?.find(c => c.id == criteriaId);
+                        const levelId = evaluations[peerId][criteriaId];
+                        const level = room.evaluationSetup?.ratingLevels?.find(l => l.id === levelId);
+                        const score = criteria ? (criteria.maxScore / 4) * levelId : 0;
+                        
+                        console.log(`      📋 ${criteria?.name || 'Unknown'}: ${level?.name || 'Unknown'} (${levelId}) = ${score}/${criteria?.maxScore || 0} điểm`);
+                    });
+                }
+            });
+            
+            // Thông báo cho host khi có member đánh giá xong
+            if (room.host) {
+                if (evaluatorPlayer) {
+                    io.to(room.host).emit('member-evaluation-submitted', {
+                        evaluatorName: evaluatorPlayer.name,
+                        evaluatedCount: Object.keys(evaluationScores).length
+                    });
+                }
+            }
+            
             // CỘNG ĐIỂM ĐÁNH GIÁ TỪNG MEMBER VÀO ĐIỂM TÍCH LŨY NGAY LẬP TỨC (chỉ cho những người có thể được đánh giá)
             Object.keys(evaluationScores).forEach(peerId => {
                 const peer = room.players.find(p => p.id === peerId);
@@ -1290,6 +1383,8 @@ io.on('connection', (socket) => {
             const hostPlayer = room.players.find(p => p.isHost);
             if (hostPlayer) {
                 saveScoresToFile(hostPlayer.name, roomCode, room.players);
+                // Lưu logs đánh giá
+                saveEvaluationLogs(hostPlayer.name, roomCode, room.evaluations);
                 console.log(`💾 Scores with member evaluation saved to file for ${hostPlayer.name}`);
             }
             
@@ -1297,7 +1392,6 @@ io.on('connection', (socket) => {
             io.to(roomCode).emit('players-list', { players: getVisiblePlayers(room.players) });
             
             // Broadcast thông báo cập nhật điểm
-            const evaluatorPlayer = room.players.find(p => p.id === evaluatorId);
             io.to(roomCode).emit('member-evaluation-scores-added', {
                 message: `${evaluatorPlayer?.name || 'Member'} đã hoàn thành đánh giá! Điểm đã được cộng vào.`,
                 updatedPlayers: room.players.filter(p => !p.isHost && evaluationScores[p.id]),
@@ -1426,6 +1520,9 @@ function saveEvaluationDetails(hostName, roomCode, evaluationSetup, evaluations,
                 const levelId = hostEval[criteria.id];
                 const level = evaluationSetup.ratingLevels.find(l => l.id === levelId);
                 const score = levelId ? (criteria.maxScore / 4) * levelId : 0;
+                
+                // Debug log
+                console.log(`🔍 Server debug: ${criteria.name} - levelId: ${levelId}, maxScore: ${criteria.maxScore}, score: ${score}`);
                 
                 return {
                     criteriaId: criteria.id,

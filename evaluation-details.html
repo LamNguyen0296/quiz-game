@@ -469,11 +469,11 @@
                     <div class="stat-label">Người đánh giá</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-value">${summary.averageHostScore.toFixed(1)}</div>
+                    <div class="stat-value">${summary.averageHostScore % 1 === 0 ? summary.averageHostScore.toString() : summary.averageHostScore.toFixed(1)}</div>
                     <div class="stat-label">Điểm TB từ Host</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-value">${summary.averagePeerScore.toFixed(1)}</div>
+                    <div class="stat-value">${summary.averagePeerScore % 1 === 0 ? summary.averagePeerScore.toString() : summary.averagePeerScore.toFixed(1)}</div>
                     <div class="stat-label">Điểm TB từ Peers</div>
                 </div>
             `;
@@ -518,7 +518,7 @@
                 <div class="member-card">
                     <div class="member-header">
                         <div class="member-name">${member.memberName}</div>
-                        <div class="member-score">${member.finalScore.toFixed(1)} điểm</div>
+                        <div class="member-score">${member.finalScore % 1 === 0 ? member.finalScore.toString() : member.finalScore.toFixed(1)} điểm</div>
                     </div>
 
                     <div class="evaluation-section">
@@ -529,7 +529,7 @@
                                     <div class="criteria-name">${detail.criteriaName}</div>
                                     <div class="criteria-description">${detail.criteriaDescription}</div>
                                     <div class="criteria-score">
-                                        <span class="score-value">${detail.score.toFixed(1)} điểm</span>
+                                        <span class="score-value">${detail.score % 1 === 0 ? detail.score.toString() : detail.score.toFixed(1)} điểm</span>
                                         <span class="score-max">/ ${detail.maxScore}</span>
                                     </div>
                                     <div class="evaluator-info">
@@ -541,7 +541,7 @@
                     </div>
 
                     <div class="evaluation-section">
-                        <div class="section-title">👥 Đánh giá từ Peers (TB: ${member.peerAverageScore.toFixed(1)} điểm)</div>
+                        <div class="section-title">👥 Đánh giá từ Peers (TB: ${member.peerAverageScore % 1 === 0 ? member.peerAverageScore.toString() : member.peerAverageScore.toFixed(1)} điểm)</div>
                         ${member.peerEvaluations.map(peer => `
                             <div style="margin-bottom: 20px;">
                                 <div style="font-weight: 600; color: #007bff; margin-bottom: 10px;">
@@ -553,7 +553,7 @@
                                             <div class="criteria-name">${eval.criteriaName}</div>
                                             <div class="criteria-description">${eval.criteriaDescription}</div>
                                             <div class="criteria-score">
-                                                <span class="score-value">${eval.score.toFixed(1)} điểm</span>
+                                                <span class="score-value">${eval.score % 1 === 0 ? eval.score.toString() : eval.score.toFixed(1)} điểm</span>
                                                 <span class="score-max">/ ${eval.maxScore}</span>
                                             </div>
                                             <div class="evaluator-info">
@@ -607,7 +607,7 @@
                                         <div class="criteria-name">${criteria.criteriaName}</div>
                                         <div class="criteria-description">${criteria.criteriaDescription}</div>
                                         <div class="criteria-score">
-                                            <span class="score-value">${criteria.score.toFixed(1)} điểm</span>
+                                            <span class="score-value">${criteria.score % 1 === 0 ? criteria.score.toString() : criteria.score.toFixed(1)} điểm</span>
                                             <span class="score-max">/ ${criteria.maxScore}</span>
                                         </div>
                                         <div class="evaluator-info">
