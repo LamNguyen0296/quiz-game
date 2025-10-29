@@ -405,7 +405,7 @@
             try {
                 showLoading();
                 
-                const response = await fetch(`/api/evaluation-details/${params.hostName}/${params.roomCode}`);
+                const response = await fetch(`/api/evaluation-details/${encodeURIComponent(params.hostName)}/${encodeURIComponent(params.roomCode)}`);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);

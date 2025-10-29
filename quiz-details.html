@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chi tiết Quiz</title>
+    <style>
+        body { font-family: Segoe UI, Arial, sans-serif; background: linear-gradient(135deg,#667eea 0%,#764ba2 100%); margin: 0; }
+        .container { max-width: 1100px; margin: 0 auto; background: #fff; border-radius: 14px; box-shadow: 0 20px 40px rgba(0,0,0,.15); overflow: hidden; }
+        .header { padding: 26px 30px; color: #fff; background: linear-gradient(135deg,#667eea 0%,#764ba2 100%); }
+        .header h1 { margin: 0 0 6px; font-size: 28px; }
+        .sub { opacity: .9; }
+        .toolbar { display: flex; gap: 10px; padding: 14px 20px; border-bottom: 1px solid #eee; background: #fafbff; }
+        .btn { background: #667eea; color: #fff; border: 0; border-radius: 8px; padding: 10px 14px; font-weight: 600; cursor: pointer; }
+        .btn.secondary { background: #36d1dc; }
+        .section { padding: 20px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .card { border: 1px solid #eee; border-radius: 10px; padding: 16px; background: #fff; }
+        .title { font-weight: 700; color: #667eea; margin-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border-bottom: 1px solid #eee; padding: 10px; text-align: left; }
+        th { background: #f6f7ff; color: #444; }
+        .pill { display: inline-block; padding: 4px 10px; border-radius: 999px; background: #eef2ff; color: #4f46e5; font-weight: 700; }
+        .muted { color: #777; font-size: 13px; }
+        .q { background: #f9fafb; padding: 10px; border-radius: 8px; margin: 8px 0; }
+        .footer { padding: 16px 20px; border-top: 1px solid #eee; background: #fafbff; font-size: 13px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container" style="background: transparent; box-shadow: none;">
+            <h1>📊 Chi tiết Quiz</h1>
+            <div class="sub">Xem câu hỏi và kết quả của từng nhóm</div>
+        </div>
+    </div>
+    <div class="container">
+        <div class="toolbar">
+            <button class="btn" id="backBtn" onclick="history.back()">← Quay lại</button>
+            <button class="btn secondary" onclick="downloadJson()">⬇️ Tải JSON</button>
+            <button class="btn" onclick="downloadCsv()">⬇️ Tải CSV</button>
+        </div>
+
+        <div class="section grid">
+            <div class="card">
+                <div class="title">Thông tin</div>
+                <div>👑 Host: <span id="hostName">-</span></div>
+                <div>🏠 Phòng: <span id="roomCode">-</span></div>
+                <div>🕒 Thời gian: <span id="timestamp">-</span></div>
+            </div>
+            <div class="card">
+                <div class="title">Tổng quan</div>
+                <div>❓ Số câu hỏi: <span id="totalQuestions">0</span></div>
+                <div>👥 Số nhóm: <span id="totalPlayers">0</span></div>
+            </div>
+        </div>
+
+        <div class="section card">
+            <div class="title">Danh sách câu hỏi</div>
+            <div id="questions"></div>
+        </div>
+
+        <div class="section card">
+            <div class="title">Bảng xếp hạng</div>
+            <table>
+                <thead>
+                    <tr><th>Hạng</th><th>Nhóm</th><th>Đúng</th><th>Tổng</th><th>Điểm</th><th></th></tr>
+                </thead>
+                <tbody id="resultsBody"></tbody>
+            </table>
+            <div class="muted">Bấm “Chi tiết” để xem điểm theo từng câu.</div>
+        </div>
+
+        <div class="section card" id="detailPanel" style="display:none;">
+            <div class="title">Chi tiết: <span id="detailName">-</span> <span class="pill" id="detailScore"></span></div>
+            <div id="detailBody"></div>
+        </div>
+
+        <div class="footer">Quiz Game Viewer</div>
+    </div>
+
+    <script>
+        let quizData = null;
+        let params = new URLSearchParams(location.search);
+        const hostName = params.get('hostName');
+        const roomCode = params.get('roomCode');
+
+        async function load() {
+            if (!hostName || !roomCode) return;
+            const res = await fetch(`/api/quiz-details/${encodeURIComponent(hostName)}/${encodeURIComponent(roomCode)}`);
+            if (!res.ok) {
+                document.body.innerHTML += '<div style="padding:16px;color:#b00020;">Không tải được dữ liệu.</div>';
+                return;
+            }
+            quizData = await res.json();
+            render();
+        }
+
+        function render() {
+            document.getElementById('hostName').textContent = quizData.hostName || '-';
+            document.getElementById('roomCode').textContent = quizData.roomCode || '-';
+            document.getElementById('timestamp').textContent = new Date(quizData.timestamp).toLocaleString('vi-VN');
+            const qs = (quizData.quiz && quizData.quiz.questions) || [];
+            document.getElementById('totalQuestions').textContent = qs.length;
+            document.getElementById('totalPlayers').textContent = (quizData.results || []).length;
+
+            // Questions list
+            const qWrap = document.getElementById('questions');
+            qWrap.innerHTML = '';
+            qs.forEach((q, i) => {
+                const div = document.createElement('div');
+                div.className = 'q';
+                const opts = (q.options || []).map((o, idx) => `${String.fromCharCode(65+idx)}. ${o}`).join(' • ');
+                div.innerHTML = `<div><b>Câu ${i+1}</b> (${q.timeLimit || 0}s)</div><div>${q.question}</div><div class="muted">${opts}</div><div>Đáp án đúng: <b>${String.fromCharCode(65 + (q.correctAnswer ?? 0))}</b></div>`;
+                qWrap.appendChild(div);
+            });
+
+            // Results table
+            const body = document.getElementById('resultsBody');
+            body.innerHTML = '';
+            (quizData.results || []).forEach((r, idx) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${idx+1}</td><td>${r.playerName}</td><td>${r.correctAnswers}</td><td>${r.totalQuestions}</td><td><b>${r.score}</b></td><td><button class="btn" onclick="showDetail(${idx})">Chi tiết</button></td>`;
+                body.appendChild(tr);
+            });
+        }
+
+        function showDetail(index) {
+            const r = (quizData.results || [])[index];
+            if (!r) return;
+            document.getElementById('detailPanel').style.display = 'block';
+            document.getElementById('detailName').textContent = r.playerName;
+            document.getElementById('detailScore').textContent = `${r.score} điểm`;
+            const wrap = document.getElementById('detailBody');
+            wrap.innerHTML = '';
+            (r.details || []).forEach((d, i) => {
+                const div = document.createElement('div');
+                div.className = 'q';
+                const opts = (d.options || []).map((o, idx) => `${String.fromCharCode(65+idx)}. ${o}`).join(' • ');
+                const ans = d.playerAnswer != null ? String.fromCharCode(65 + d.playerAnswer) : '-';
+                const corr = String.fromCharCode(65 + (d.correctAnswer ?? 0));
+                div.innerHTML = `<div><b>Câu ${i+1}:</b> ${d.question}</div><div class="muted">${opts}</div><div>Kết quả: ${d.isCorrect ? '✅ Đúng' : '❌ Sai'} • Trả lời: <b>${ans}</b> • Đúng: <b>${corr}</b> • +${d.pointsEarned} điểm</div>`;
+                wrap.appendChild(div);
+            });
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+
+        function downloadJson() {
+            if (!quizData) return;
+            const blob = new Blob([JSON.stringify(quizData, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `quiz_details_${(quizData.roomCode||'').toLowerCase()}.json`;
+            a.click();
+        }
+
+        function downloadCsv() {
+            if (!quizData) return;
+            const rows = [['playerName','totalQuestions','correctAnswers','score']];
+            (quizData.results || []).forEach(r => rows.push([r.playerName, r.totalQuestions, r.correctAnswers, r.score]));
+            const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `quiz_results_${(quizData.roomCode||'').toLowerCase()}.csv`;
+            a.click();
+        }
+
+        load();
+    </script>
+</body>
+</html>
+
+

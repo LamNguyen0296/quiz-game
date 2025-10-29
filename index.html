@@ -838,14 +838,14 @@
                         <input type="radio" name="actionType" value="join" id="joinRoomType" style="margin: 0;">
                         <span style="font-weight: 600;">🚪 Tham gia phòng</span>
                     </label>
-                </div>
+        </div>
             </div>
             
             <!-- Room Code Input (only shown when join is selected) -->
             <div id="roomCodeSection" class="input-group" style="display: none;">
                 <label>Mã phòng (6 ký tự):</label>
                 <input type="text" id="roomCodeInput" placeholder="Nhập mã phòng" maxlength="6" style="text-transform: uppercase;">
-            </div>
+    </div>
             
             <!-- Host Name Input (only shown when create is selected) -->
             <div id="hostNameSection" class="input-group" style="display: none;">
@@ -939,7 +939,10 @@
 
             <div id="hostControls" style="text-align: center; display: none;">
                 <button class="btn btn-success" onclick="startQuiz()" id="startQuizBtn">🚀 Bắt đầu Quiz</button>
+                <button class="btn" onclick="openQuizDetails()" id="quizDetailsBtn" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">📊 Xem chi tiết Quiz</button>
                 <button class="btn" onclick="openEvaluation()" id="evaluationBtn" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">⭐ Đánh giá</button>
+                <button class="btn" onclick="openEvaluationDetails()" id="evaluationDetailsBtn" style="background: linear-gradient(135deg, #36d1dc 0%, #5b86e5 100%);">📑 Xem chi tiết đánh giá</button>
+                <button class="btn btn-danger" onclick="showFinalResults()" id="finalBtn" style="margin-left:8px;">🏁 Kết thúc</button>
             </div>
 
             <div style="text-align: center; margin-top: 20px;">
@@ -981,6 +984,16 @@
             <div style="text-align: center; margin-top: 30px;">
                 <button class="btn" onclick="backToLobby()">Quay lại phòng chờ</button>
                 <button class="btn btn-danger" onclick="leaveRoom()">Rời phòng</button>
+            </div>
+        </div>
+
+        <!-- Final Results Screen -->
+        <div id="finalScreen" class="screen">
+            <h1>🎬 Xếp hạng</h1>
+            <div id="finalBanner" style="text-align:center; margin: 10px 0; color:#4b5563; font-weight:800; letter-spacing:.5px">Top 4 nhóm</div>
+            <div id="finalGrid" style="display:grid; grid-template-columns: 1fr 1.2fr 1fr; gap:20px; max-width:1100px; margin:0 auto; align-items:end;"></div>
+            <div style="text-align:center; margin-top:24px">
+                <button class="btn" onclick="backToLobby()">Quay lại phòng chờ</button>
             </div>
         </div>
 
@@ -1198,7 +1211,7 @@
                 alert('Vui lòng nhập mã phòng hợp lệ!');
                 return;
             }
-            
+
             if (!playerType) {
                 alert('Vui lòng chọn loại tham gia!');
                 return;
@@ -1685,6 +1698,38 @@
             socket.emit('start-quiz');
         }
 
+        // Mở trang chi tiết đánh giá
+        function openEvaluationDetails() {
+            try {
+                const host = hostName || (isHost ? currentPlayer : (document.getElementById('lobbyHostName')?.textContent || ''));
+                if (!host || !currentRoom) {
+                    alert('Thiếu thông tin host hoặc mã phòng');
+                    return;
+                }
+                const url = `/evaluation-details.html?hostName=${encodeURIComponent(host)}&roomCode=${encodeURIComponent(currentRoom)}`;
+                window.open(url, '_blank');
+            } catch (e) {
+                console.error('openEvaluationDetails error:', e);
+                alert('Không mở được trang chi tiết đánh giá');
+            }
+        }
+
+        // Mở trang chi tiết quiz (viewer)
+        function openQuizDetails() {
+            try {
+                const host = hostName || (isHost ? currentPlayer : (document.getElementById('lobbyHostName')?.textContent || ''));
+                if (!host || !currentRoom) {
+                    alert('Thiếu thông tin host hoặc mã phòng');
+                    return;
+                }
+                const url = `/quiz-details.html?hostName=${encodeURIComponent(host)}&roomCode=${encodeURIComponent(currentRoom)}`;
+                window.open(url, '_blank');
+            } catch (e) {
+                console.error('openQuizDetails error:', e);
+                alert('Không mở được chi tiết quiz');
+            }
+        }
+
         socket.on('quiz-started', (data) => {
             showScreen('quizScreen');
             displayQuestion(data);
@@ -1701,6 +1746,8 @@
         });
 
         function displayQuestion(data) {
+            // Ẩn popup nộp bài của câu trước (nếu còn)
+            hideSubmissionNotification();
             currentQuestionIndex = data.currentQuestion;
             questionStartTime = Date.now();
             
@@ -1900,26 +1947,23 @@
         }
 
         socket.on('quiz-ended', (data) => {
+            // Ẩn popup nộp bài khi kết thúc quiz
+            hideSubmissionNotification();
             clearInterval(timerInterval);
             console.log('Quiz ended, results:', data.results);
-            console.log('Total players in results:', data.results.length);
             
-            // Cập nhật điểm của người chơi hiện tại
-            if (!isHost && currentPlayer) {
-                // Tìm kết quả bằng cách so sánh ID thay vì tên để tránh lỗi với nhóm
-                const myResult = data.results.find(r => {
-                    const player = data.players.find(p => p.id === socket.id);
-                    return player && r.playerName === player.name;
-                });
-                if (myResult) {
-                    currentPlayerScore = myResult.score || 0;
-                    updateConnectionStatus(true);
-                    updateMyScoreDisplay(true); // Thêm animation
+            // Luôn hiển thị màn hình kết quả cho tất cả
+            showScreen('resultsScreen');
+            displayResults(Array.isArray(data.results) ? data.results : []);
+            
+            // Cập nhật điểm của member hiện tại (nếu có)
+            if (!isHost && currentPlayer && Array.isArray(data.results)) {
+                const me = data.results.find(r => r.playerName === currentPlayer);
+                if (me) {
+                    currentPlayerScore = me.score || 0;
+                    updateMyScoreDisplay(true);
                 }
             }
-            
-            showScreen('resultsScreen');
-            displayResults(data.results);
         });
 
         function displayResults(results) {
@@ -1947,6 +1991,53 @@
                     </div>
                 `;
             });
+        }
+
+        // Hiển thị màn hình kết thúc cho tất cả
+        function showFinalResults() {
+            if (!isHost) return;
+            socket.emit('show-final-results');
+        }
+
+        socket.on('final-results', (data) => {
+            const results = Array.isArray(data.results) ? data.results : [];
+            renderFinalResults(results);
+            showScreen('finalScreen');
+        });
+
+        function renderFinalResults(results) {
+            const grid = document.getElementById('finalGrid');
+            grid.innerHTML = '';
+            const top4 = results.slice(0,4);
+            const makeCard = (r, rank) => {
+                const medal = ['🥇','🥈','🥉','🏅'][rank-1] || '';
+                const color = ['#ffd700','#c0c0c0','#cd7f32','#22c55e'][rank-1] || '#e5e7eb';
+                const scale = rank===1 ? 1.12 : (rank===4 ? 0.85 : 1.0);
+                const card = document.createElement('div');
+                card.style.transform = `scale(${scale})`;
+                card.style.background = '#ffffff';
+                card.style.border = `3px solid ${color}`;
+                card.style.borderRadius = '16px';
+                card.style.boxShadow = '0 18px 40px rgba(0,0,0,.15)';
+                card.style.padding = '16px';
+                card.style.textAlign = 'center';
+                card.innerHTML = `
+                    <div style="font-size:22px;font-weight:900;color:#111;">${medal} Hạng ${rank}</div>
+                    <div style="margin-top:8px;font-size:18px;font-weight:800;color:#1f2937;">${r?.playerName || '-'}</div>
+                    <div style="margin-top:10px;font-size:24px;font-weight:900;color:#111;">${r?.score ?? 0} điểm</div>
+                `;
+                return card;
+            };
+            // Top row: 2,1,3
+            [2,1,3].forEach(rank => {
+                const r = top4[rank-1];
+                grid.appendChild(makeCard(r, rank));
+            });
+            // Bottom row: rank 4 nhỏ, đặt giữa cột 2
+            const fourth = makeCard(top4[3], 4);
+            fourth.style.gridColumn = '2';
+            fourth.style.marginTop = '8px';
+            grid.appendChild(fourth);
         }
 
         // Hiển thị modal chi tiết
@@ -2143,15 +2234,14 @@
                 
                 // Play sound
                 playSubmissionSound();
-                
-                // Auto hide after 3 seconds
-                setTimeout(() => {
-                    notification.classList.remove('show');
-                    setTimeout(() => {
-                        notification.style.display = 'none';
-                    }, 500);
-                }, 3000);
             }
+        }
+
+        function hideSubmissionNotification() {
+            const notification = document.getElementById('submissionNotification');
+            if (!notification) return;
+            notification.classList.remove('show');
+            notification.style.display = 'none';
         }
 
         function playSubmissionSound() {
@@ -2210,15 +2300,14 @@
                 
                 // Play sound
                 playEvaluationSound();
-                
-                // Auto hide after 4 seconds (lâu hơn submission vì có nhiều thông tin hơn)
-                setTimeout(() => {
-                    notification.classList.remove('show');
-                    setTimeout(() => {
-                        notification.style.display = 'none';
-                    }, 500);
-                }, 4000);
             }
+        }
+
+        function hideEvaluationNotification() {
+            const notification = document.getElementById('evaluationNotification');
+            if (!notification) return;
+            notification.classList.remove('show');
+            notification.style.display = 'none';
         }
 
         function playEvaluationSound() {
@@ -2278,15 +2367,14 @@
                 
                 // Play sound
                 playHostEvaluationSound();
-                
-                // Auto hide after 4 seconds
-                setTimeout(() => {
-                    notification.classList.remove('show');
-                    setTimeout(() => {
-                        notification.style.display = 'none';
-                    }, 500);
-                }, 4000);
             }
+        }
+
+        function hideHostEvaluationNotification() {
+            const notification = document.getElementById('hostEvaluationNotification');
+            if (!notification) return;
+            notification.classList.remove('show');
+            notification.style.display = 'none';
         }
 
         function playHostEvaluationSound() {
@@ -2640,6 +2728,8 @@
         
         // Render member evaluation form với players data
         function renderMemberEvaluationWithPlayers(players) {
+            // Ẩn popup cũ nếu đang hiển thị
+            hideEvaluationNotification();
             const peersContainer = document.getElementById('memberEvalPeers');
             if (!peersContainer) return;
             
@@ -2937,6 +3027,9 @@
         // Nhận thông báo khi tất cả đánh giá hoàn thành
         socket.on('all-evaluations-complete', (data) => {
             console.log('🎉 All evaluations complete:', data);
+            // Ẩn các popup liên quan đến đánh giá khi kết thúc đợt đánh giá
+            hideEvaluationNotification();
+            hideHostEvaluationNotification();
         });
 
         function displayEvaluationResults(results) {
@@ -2952,6 +3045,8 @@
 
         // Render host evaluation form với players data
         function renderHostEvaluationWithPlayers(players) {
+            // Ẩn popup cũ nếu đang hiển thị
+            hideEvaluationNotification();
             const membersContainer = document.getElementById('hostEvalMembers');
             if (!membersContainer) return;
 

@@ -1,7 +1,7 @@
 {
   "hostName": "Lớp 6/13",
   "roomCode": "QUIZ12",
-  "timestamp": "2025-10-28T02:35:59.256Z",
+  "timestamp": "2025-10-29T07:54:24.492Z",
   "quiz": {
     "questions": [
       {
@@ -9,21 +9,21 @@
         "question": "a",
         "options": [
           "a",
-          "b",
-          "c",
-          "d"
+          "a",
+          "a",
+          "a"
         ],
-        "correctAnswer": 1,
+        "correctAnswer": 0,
         "timeLimit": 30,
-        "mediaPath": "/uploads/1761582938084-SampleVideo_1280x720_2mb.mp4",
-        "mediaType": "video"
+        "mediaPath": null,
+        "mediaType": null
       }
     ]
   },
   "results": [
     {
-      "playerName": "Nhóm 1: Văn A",
-      "playerId": "4voLYYpQ5-Bq6rTnAAAF",
+      "playerName": "Nhóm 1: a",
+      "playerId": "xVw3RGHkBVcfHhT0AAAL",
       "totalQuestions": 1,
       "correctAnswers": 0,
       "score": 0,
@@ -33,12 +33,12 @@
           "question": "a",
           "options": [
             "a",
-            "b",
-            "c",
-            "d"
+            "a",
+            "a",
+            "a"
           ],
-          "correctAnswer": 1,
-          "playerAnswer": 0,
+          "correctAnswer": 0,
+          "playerAnswer": 1,
           "isCorrect": false,
           "answered": true,
           "pointsEarned": 0

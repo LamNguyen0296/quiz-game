@@ -343,10 +343,16 @@ function endQuiz(room, roomCode) {
         saveQuizDetails(hostPlayer.name, roomCode, room.quiz, results);
     }
 
-    // Gửi kết quả
-    io.to(roomCode).emit('quiz-ended', {
-        results: results
-    });
+    // Lưu kết quả cuối cùng vào state để hiển thị màn hình chung cuộc
+    room.lastQuizResults = results;
+
+    // Gửi kết quả tới tất cả client trong phòng
+    io.to(roomCode).emit('quiz-ended', { results });
+    // Phát tán an toàn toàn cục để đảm bảo client ngoài phòng (nhưng đang mở) cũng nhận được
+    io.emit('quiz-ended', { results });
+
+    // Sau khi kết thúc, broadcast lại danh sách players để màn hình chờ cập nhật
+    io.to(roomCode).emit('players-list', { players: getVisiblePlayers(room.players) });
 
     console.log(`Quiz ended in room ${roomCode}`);
 }
@@ -375,13 +381,55 @@ app.get('/api/evaluation-details/:hostName/:roomCode', (req, res) => {
     try {
         const safeHostName = sanitizeFileName(hostName);
         const safeRoomCode = sanitizeFileName(roomCode);
-        const filePath = path.join(__dirname, 'evaluation-details', `${safeHostName}-${safeRoomCode}-evaluation-details.json`);
-        if (fs.existsSync(filePath)) {
-            const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-            res.json(data);
-        } else {
-            res.status(404).json({ error: 'Evaluation details not found' });
+
+        const detailsFilePath = path.join(__dirname, 'evaluation-details', `${safeHostName}-${safeRoomCode}-evaluation-details.json`);
+        // Nếu file chi tiết đã tồn tại thì trả về ngay
+        if (fs.existsSync(detailsFilePath)) {
+            const data = JSON.parse(fs.readFileSync(detailsFilePath, 'utf8'));
+            return res.json(data);
         }
+
+        // Nếu chưa có file chi tiết, thử dựng từ logs + setup + scores
+        // Quan trọng: phải dùng đúng quy tắc đặt tên đã dùng khi lưu logs
+        // getEvaluationLogsFilePath(): hostName.toLowerCase().replace(/[^a-z0-9]/g, '') + '-evaluation-logs.json'
+        const logsKey = hostName.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const quizzesLogPath = path.join(__dirname, 'quizzes', `${logsKey}-evaluation-logs.json`);
+        if (fs.existsSync(quizzesLogPath)) {
+            const logData = JSON.parse(fs.readFileSync(quizzesLogPath, 'utf8'));
+
+            // Tải evaluation setup đã lưu (hoặc fallback sang evaluation-criteria.json)
+            let setup = loadEvaluationSetup(hostName);
+            if (!setup) {
+                try {
+                    const criteriaPath = path.join(__dirname, 'evaluation-criteria.json');
+                    setup = JSON.parse(fs.readFileSync(criteriaPath, 'utf8'));
+                } catch (e) {
+                    console.error('Failed to load evaluation-criteria.json:', e.message);
+                }
+            }
+
+            // Tải danh sách players từ scores file (top 4 nhóm)
+            const scoresPath = getScoresFilePath(hostName);
+            let players = [];
+            if (fs.existsSync(scoresPath)) {
+                const scoreData = JSON.parse(fs.readFileSync(scoresPath, 'utf8'));
+                players = (scoreData.scores || []).map(s => ({ id: s.id, name: s.name, isHost: false, score: s.score || 0 }));
+            }
+
+            // Dựng file chi tiết nếu có đủ dữ liệu cần thiết
+            if (setup && logData && logData.evaluations && players.length > 0) {
+                const ok = saveEvaluationDetails(hostName, roomCode, setup, logData.evaluations, players);
+                if (ok && fs.existsSync(detailsFilePath)) {
+                    const built = JSON.parse(fs.readFileSync(detailsFilePath, 'utf8'));
+                    return res.json(built);
+                }
+            }
+
+            // Nếu không dựng được, trả về dữ liệu logs như phương án cuối
+            return res.json(logData);
+        }
+
+        return res.status(404).json({ error: 'Evaluation details not found' });
     } catch (error) {
         console.error('Error loading evaluation details:', error);
         res.status(500).json({ error: 'Error loading evaluation details' });
@@ -1018,6 +1066,32 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Host yêu cầu hiển thị màn hình xếp hạng cuối
+    socket.on('show-final-results', () => {
+        if (socket.roomCode && rooms.has(socket.roomCode)) {
+            const room = rooms.get(socket.roomCode);
+            if (room.host !== socket.id) {
+                socket.emit('error', { message: 'Chỉ host mới có thể hiển thị chung cuộc!' });
+                return;
+            }
+            let results = room.lastQuizResults;
+            if (!results || !Array.isArray(results) || results.length === 0) {
+                // Fallback: lấy theo điểm hiện tại
+                results = getQuizPlayers(room.players).map(p => ({
+                    playerId: p.id,
+                    playerName: p.name,
+                    score: p.score || 0,
+                    totalQuestions: room.quiz?.questions?.length || 0,
+                    correctAnswers: 0,
+                    details: []
+                }));
+                results.sort((a, b) => b.score - a.score);
+            }
+            const top = results.slice(0, 4);
+            io.to(socket.roomCode).emit('final-results', { results: top });
+        }
+    });
+
     // Cập nhật điểm của member (chỉ host)
     socket.on('update-player-score', (data) => {
         if (socket.roomCode && rooms.has(socket.roomCode)) {
@@ -1273,24 +1347,34 @@ io.on('connection', (socket) => {
                 }
             });
             
-            // CỘNG TỔNG ĐIỂM ĐÁNH GIÁ VÀO ĐIỂM TÍCH LŨY HIỆN TẠI (chỉ cho những người có thể được đánh giá)
+            // CỘNG ĐIỂM ĐÁNH GIÁ HOST VÀO ĐIỂM TÍCH LŨY (giới hạn 40 điểm/nhóm)
             Object.keys(evaluationScores).forEach(memberId => {
                 const member = room.players.find(p => p.id === memberId);
                 if (member && !member.isHost && !member.name.startsWith('Thầy/Cô: ')) {
+                    // Kiểm tra xem đã cộng điểm host evaluation chưa
+                    if (!room.evaluationScoresAdded) {
+                        room.evaluationScoresAdded = { host: {}, members: {}, teachers: {} };
+                    }
+                    
+                    if (!room.evaluationScoresAdded.host[memberId]) {
                     const currentScore = member.score || 0; // Điểm tích lũy hiện tại
-                    const totalEvaluationScore = evaluationScores[memberId]; // Tổng điểm đánh giá
-                    const newScore = currentScore + totalEvaluationScore; // Cộng vào điểm tích lũy
+                        const hostEvaluationScore = Math.min(evaluationScores[memberId], 40); // Giới hạn 40 điểm từ host
+                        const newScore = currentScore + hostEvaluationScore; // Cộng vào điểm tích lũy
                     
                     member.score = newScore;
-                    
-                    console.log(`✅ Score updated for ${member.name}: ${currentScore} (tích lũy) + ${totalEvaluationScore} (đánh giá) = ${newScore}`);
-                    
-                    // Thông báo cho member khi được host đánh giá
-                    io.to(memberId).emit('host-evaluation-received', {
-                        evaluatorName: 'Giáo viên',
-                        evaluatedScore: totalEvaluationScore,
-                        newTotalScore: newScore
-                    });
+                        room.evaluationScoresAdded.host[memberId] = hostEvaluationScore; // Đánh dấu đã cộng
+                        
+                        console.log(`✅ Host evaluation added for ${member.name}: ${currentScore} (tích lũy) + ${hostEvaluationScore} (host đánh giá) = ${newScore}`);
+                        
+                        // Thông báo cho member khi được host đánh giá
+                        io.to(memberId).emit('host-evaluation-received', {
+                            evaluatorName: 'Giáo viên',
+                            evaluatedScore: hostEvaluationScore,
+                            newTotalScore: newScore
+                        });
+                    } else {
+                        console.log(`⚠️ Host evaluation already added for ${member.name}, skipping...`);
+                    }
                 }
             });
             
@@ -1337,8 +1421,10 @@ io.on('connection', (socket) => {
             
             console.log('📊 Member evaluation received:', evaluationScores);
             
-            // Log chi tiết đánh giá của member
+            // Lấy thông tin người đánh giá
             const evaluatorPlayer = room.players.find(p => p.id === evaluatorId);
+            
+            // Log chi tiết đánh giá của member
             console.log(`🔍 Member evaluation details from ${evaluatorPlayer?.name || 'Unknown'}:`);
             Object.keys(evaluations).forEach(peerId => {
                 const peer = room.players.find(p => p.id === peerId);
@@ -1365,27 +1451,98 @@ io.on('connection', (socket) => {
                 }
             }
             
-            // CỘNG ĐIỂM ĐÁNH GIÁ TỪNG MEMBER VÀO ĐIỂM TÍCH LŨY NGAY LẬP TỨC (chỉ cho những người có thể được đánh giá)
+            // XỬ LÝ ĐÁNH GIÁ CỦA THẦY/CÔ VÀ NHÓM
+            const isTeacher = evaluatorPlayer && evaluatorPlayer.name.startsWith('Thầy/Cô: ');
+            
+            if (isTeacher) {
+                // XỬ LÝ ĐÁNH GIÁ CỦA THẦY/CÔ - TÍNH TRUNG BÌNH CỘNG
+                console.log(`👨‍🏫 Teacher evaluation from ${evaluatorPlayer.name}`);
+                
+                // Lưu đánh giá của thầy/cô
+                if (!room.evaluations.teachers) {
+                    room.evaluations.teachers = {};
+                }
+                room.evaluations.teachers[evaluatorId] = evaluations;
+                
+                // Tính trung bình cộng cho mỗi nhóm được đánh giá
             Object.keys(evaluationScores).forEach(peerId => {
                 const peer = room.players.find(p => p.id === peerId);
                 if (peer && !peer.isHost && !peer.name.startsWith('Thầy/Cô: ')) {
+                        // Lấy tất cả đánh giá của thầy/cô cho nhóm này
+                        const teacherScores = [];
+                        Object.keys(room.evaluations.teachers).forEach(teacherId => {
+                            const teacherEval = room.evaluations.teachers[teacherId];
+                            if (teacherEval[peerId]) {
+                                const teacherScore = calculateEvaluationScore(teacherEval[peerId], room.evaluationSetup?.memberCriteria || []);
+                                teacherScores.push(teacherScore);
+                            }
+                        });
+                        
+                        if (teacherScores.length > 0) {
+                            // Tính trung bình cộng
+                            const averageScore = teacherScores.reduce((sum, score) => sum + score, 0) / teacherScores.length;
+                            
+                            // Kiểm tra xem đã cộng điểm teacher evaluation chưa
+                            if (!room.evaluationScoresAdded) {
+                                room.evaluationScoresAdded = { host: {}, members: {}, teachers: {} };
+                            }
+                            
+                            if (!room.evaluationScoresAdded.teachers[peerId]) {
                     const currentScore = peer.score || 0;
-                    const memberEvaluationScore = evaluationScores[peerId];
-                    const newScore = currentScore + memberEvaluationScore;
-                    
-                    peer.score = newScore;
-                    
-                    console.log(`✅ Member evaluation score added for ${peer.name}: ${currentScore} + ${memberEvaluationScore} = ${newScore}`);
+                                const teacherEvaluationScore = Math.round(averageScore * 100) / 100; // Làm tròn 2 chữ số thập phân
+                                const newScore = currentScore + teacherEvaluationScore;
+                                
+                                peer.score = newScore;
+                                room.evaluationScoresAdded.teachers[peerId] = teacherEvaluationScore;
+                                
+                                console.log(`✅ Teacher evaluation added for ${peer.name}: ${currentScore} (tích lũy) + ${teacherEvaluationScore} (trung bình thầy/cô) = ${newScore}`);
+                                console.log(`   📊 Teacher scores: [${teacherScores.join(', ')}] → Average: ${teacherEvaluationScore}`);
+                            } else {
+                                console.log(`⚠️ Teacher evaluation already added for ${peer.name}, skipping...`);
+                            }
+                        }
+                    }
+                });
+                
+                // Lưu logs đánh giá thầy/cô
+                const hostPlayer = room.players.find(p => p.isHost);
+                if (hostPlayer) {
+                    saveScoresToFile(hostPlayer.name, roomCode, room.players);
+                    saveEvaluationLogs(hostPlayer.name, roomCode, room.evaluations);
+                    console.log(`💾 Scores with teacher evaluation saved to file for ${hostPlayer.name}`);
                 }
-            });
-            
-            // Lưu điểm mới vào file
-            const hostPlayer = room.players.find(p => p.isHost);
-            if (hostPlayer) {
-                saveScoresToFile(hostPlayer.name, roomCode, room.players);
-                // Lưu logs đánh giá
-                saveEvaluationLogs(hostPlayer.name, roomCode, room.evaluations);
-                console.log(`💾 Scores with member evaluation saved to file for ${hostPlayer.name}`);
+            } else {
+                // XỬ LÝ ĐÁNH GIÁ CỦA NHÓM - GIỚI HẠN 20 ĐIỂM/NHÓM
+                Object.keys(evaluationScores).forEach(peerId => {
+                    const peer = room.players.find(p => p.id === peerId);
+                    if (peer && !peer.isHost && !peer.name.startsWith('Thầy/Cô: ')) {
+                        // Kiểm tra xem đã cộng điểm member evaluation chưa
+                        if (!room.evaluationScoresAdded) {
+                            room.evaluationScoresAdded = { host: {}, members: {}, teachers: {} };
+                        }
+                        
+                        if (!room.evaluationScoresAdded.members[peerId]) {
+                            const currentScore = peer.score || 0;
+                            const memberEvaluationScore = Math.min(evaluationScores[peerId], 20); // Giới hạn 20 điểm từ member evaluation
+                            const newScore = currentScore + memberEvaluationScore;
+                            
+                            peer.score = newScore;
+                            room.evaluationScoresAdded.members[peerId] = memberEvaluationScore; // Đánh dấu đã cộng
+                            
+                            console.log(`✅ Member evaluation added for ${peer.name}: ${currentScore} (tích lũy) + ${memberEvaluationScore} (member đánh giá) = ${newScore}`);
+                        } else {
+                            console.log(`⚠️ Member evaluation already added for ${peer.name}, skipping...`);
+                        }
+                    }
+                });
+                
+                // Lưu logs đánh giá nhóm
+                const hostPlayer = room.players.find(p => p.isHost);
+                if (hostPlayer) {
+                    saveScoresToFile(hostPlayer.name, roomCode, room.players);
+                    saveEvaluationLogs(hostPlayer.name, roomCode, room.evaluations);
+                    console.log(`💾 Scores with member evaluation saved to file for ${hostPlayer.name}`);
+                }
             }
             
             // Broadcast điểm mới đến tất cả clients
@@ -1647,6 +1804,20 @@ function saveEvaluationDetails(hostName, roomCode, evaluationSetup, evaluations,
 }
 
 // ============ EVALUATION HELPER FUNCTIONS ============
+
+// Tính điểm đánh giá từ evaluations và criteria
+function calculateEvaluationScore(evaluations, criteria) {
+    let totalScore = 0;
+    Object.keys(evaluations).forEach(criteriaId => {
+        const levelId = evaluations[criteriaId];
+        const criteriaItem = criteria.find(c => c.id == criteriaId);
+        if (criteriaItem) {
+            const score = (criteriaItem.maxScore / 4) * levelId;
+            totalScore += score;
+        }
+    });
+    return totalScore;
+}
 
 // Kiểm tra và tính kết quả khi tất cả đã đánh giá
 function checkEvaluationComplete(room, roomCode) {
