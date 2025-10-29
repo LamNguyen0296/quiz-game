@@ -3111,7 +3111,7 @@
         }
         
         // Render member evaluation form với players data
-        function renderMemberEvaluationWithPlayers(players) {
+        async function renderMemberEvaluationWithPlayers(players) {
             // Ẩn popup cũ nếu đang hiển thị
             hideEvaluationNotification();
             const peersContainer = document.getElementById('memberEvalPeers');
@@ -3121,6 +3121,33 @@
             if (!evaluationSetup || !evaluationSetup.memberCriteria || evaluationSetup.memberCriteria.length === 0) {
                 console.log('⚠️ Evaluation setup chưa được load, đang khởi tạo mặc định...');
                 initializeDefaultEvaluation();
+            }
+            
+            // Đảm bảo maxScore được load từ JSON nếu thiếu
+            if (evaluationSetup && evaluationSetup.memberCriteria) {
+                let needsReload = false;
+                evaluationSetup.memberCriteria.forEach(criteria => {
+                    if (!criteria.maxScore || criteria.maxScore === 0) {
+                        needsReload = true;
+                    }
+                });
+                
+                if (needsReload) {
+                    try {
+                        const response = await fetch('/evaluation-criteria.json');
+                        const jsonData = await response.json();
+                        if (jsonData && jsonData.memberCriteria) {
+                            evaluationSetup.memberCriteria.forEach((criteria) => {
+                                const jsonCriteria = jsonData.memberCriteria.find(c => c.id === criteria.id);
+                                if (jsonCriteria && jsonCriteria.maxScore) {
+                                    criteria.maxScore = jsonCriteria.maxScore;
+                                }
+                            });
+                        }
+                    } catch (error) {
+                        console.error('❌ Lỗi load JSON để lấy maxScore:', error);
+                    }
+                }
             }
             
             // Lọc ra members (không bao gồm host, chính mình và Thầy/Cô)
@@ -3142,13 +3169,21 @@
                     </div>
                     
                     <div style="display: flex; flex-direction: column; gap: 15px;">
-                        ${evaluationSetup.memberCriteria.map(criteria => `
+                        ${evaluationSetup.memberCriteria.map(criteria => {
+                            // Đảm bảo maxScore luôn có giá trị (fallback từ JSON nếu thiếu)
+                            const maxScore = criteria.maxScore || (() => {
+                                // Tìm trong evaluationSetup đã load
+                                const jsonCriteria = evaluationSetup.memberCriteria.find(c => c.id === criteria.id && c.maxScore);
+                                return jsonCriteria ? jsonCriteria.maxScore : 10; // Fallback mặc định là 10
+                            })();
+                            
+                            return `
                             <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
                                 <div style="margin-bottom: 10px;">
                                     <div style="display: flex; justify-content: space-between; align-items: center;">
                                         <strong style="color: #424242; font-size: 1rem;">${criteria.name}</strong>
                                         <span style="background: #fff3e0; padding: 3px 10px; border-radius: 12px; font-size: 0.85rem; color: #f57c00;">
-                                            Tối đa: ${criteria.maxScore} điểm
+                                            Tối đa: ${maxScore} điểm
                                         </span>
                                     </div>
                                     ${criteria.description ? `<p style="margin: 5px 0; color: #666; font-size: 0.9rem;">${criteria.description}</p>` : ''}
@@ -3160,7 +3195,7 @@
                                             <input type="radio" name="peer_${peer.id}_criteria_${criteria.id}" 
                                                    value="${level.id}" data-peer-eval data-peer-id="${peer.id}" 
                                                    data-criteria-id="${criteria.id}"
-                                                   onchange="updateMemberEvaluationScore('${peer.id}', '${criteria.id}', ${level.id}, ${criteria.maxScore})"
+                                                   onchange="updateMemberEvaluationScore('${peer.id}', '${criteria.id}', ${level.id}, ${maxScore})"
                                                    style="margin: 0;">
                                             <span style="font-size: 1.2rem;">${level.emoji}</span>
                                             <span style="font-weight: 600;">${level.name}</span>
@@ -3172,11 +3207,12 @@
                                     Chưa chọn
                                 </div>
                             </div>
-                        `).join('')}
+                        `;
+                        }).join('')}
                     </div>
                     
                     <div style="background: #fff3e0; padding: 10px; border-radius: 6px; margin-top: 15px; text-align: center;">
-                        <strong>Tổng điểm đánh giá: <span id="peer_total_eval_${peer.id}">0</span> / <span id="peer_max_eval_${peer.id}">${evaluationSetup.memberCriteria.reduce((sum, c) => sum + c.maxScore, 0)}</span></strong>
+                        <strong>Tổng điểm đánh giá: <span id="peer_total_eval_${peer.id}">0</span> / <span id="peer_max_eval_${peer.id}">${evaluationSetup.memberCriteria.reduce((sum, c) => sum + (c.maxScore || 0), 0)}</span></strong>
                     </div>
                 </div>
             `).join('');
@@ -3198,13 +3234,15 @@
         // Update total evaluation score for a peer
         function updatePeerTotalEvaluationScore(peerId) {
             let totalScore = 0;
-            const maxTotal = evaluationSetup.memberCriteria.reduce((sum, c) => sum + c.maxScore, 0);
+            const maxTotal = evaluationSetup.memberCriteria.reduce((sum, c) => sum + (c.maxScore || 0), 0);
             
             evaluationSetup.memberCriteria.forEach(criteria => {
                 const selectedRadio = document.querySelector(`input[name="peer_${peerId}_criteria_${criteria.id}"]:checked`);
                 if (selectedRadio) {
                     const levelId = parseInt(selectedRadio.value);
-                    const actualScore = (criteria.maxScore / 4) * levelId;
+                    // Đảm bảo maxScore có giá trị
+                    const maxScore = criteria.maxScore || 10; // Fallback mặc định là 10
+                    const actualScore = (maxScore / 4) * levelId;
                     totalScore += actualScore;
                 }
             });
@@ -3212,7 +3250,9 @@
             const totalElement = document.getElementById(`peer_total_eval_${peerId}`);
             const maxElement = document.getElementById(`peer_max_eval_${peerId}`);
             
-            if (totalElement) totalElement.textContent = totalScore.toFixed(1);
+            // Hiển thị tổng điểm đẹp hơn (loại bỏ .0 nếu không cần thiết)
+            const displayTotalScore = totalScore % 1 === 0 ? totalScore.toString() : totalScore.toFixed(1);
+            if (totalElement) totalElement.textContent = displayTotalScore;
             if (maxElement) maxElement.textContent = maxTotal;
         }
 
@@ -3290,7 +3330,9 @@
                         evaluations[peerId][criteria.id] = levelId;
                         
                         // Cộng điểm theo công thức: (maxScore/4) × id
-                        const actualScore = (criteria.maxScore / 4) * levelId;
+                        // Đảm bảo maxScore có giá trị từ criteria
+                        const maxScore = criteria.maxScore || 10; // Fallback mặc định là 10
+                        const actualScore = (maxScore / 4) * levelId;
                         evaluationScores[peerId] += actualScore;
                     }
                 });
@@ -3344,8 +3386,55 @@
         }
 
         // Socket events cho evaluation
-        socket.on('evaluation-started', (data) => {
+        socket.on('evaluation-started', async (data) => {
             evaluationSetup = data.setup;
+            
+            // Luôn load lại từ JSON để đảm bảo maxScore chính xác
+            try {
+                const response = await fetch('/evaluation-criteria.json');
+                const jsonData = await response.json();
+                
+                // Merge maxScore từ JSON vào setup từ server
+                if (jsonData && jsonData.memberCriteria && evaluationSetup.memberCriteria) {
+                    evaluationSetup.memberCriteria.forEach((criteria) => {
+                        // Tìm tiêu chí tương ứng trong JSON theo id
+                        const jsonCriteria = jsonData.memberCriteria.find(c => c.id === criteria.id);
+                        if (jsonCriteria) {
+                            // Luôn dùng maxScore từ JSON để đảm bảo chính xác
+                            criteria.maxScore = jsonCriteria.maxScore;
+                            // Cũng merge name và description nếu thiếu
+                            if (!criteria.name && jsonCriteria.name) {
+                                criteria.name = jsonCriteria.name;
+                            }
+                            if (!criteria.description && jsonCriteria.description) {
+                                criteria.description = jsonCriteria.description;
+                            }
+                        }
+                    });
+                }
+                
+                // Cũng merge hostCriteria maxScore
+                if (jsonData && jsonData.hostCriteria && evaluationSetup.hostCriteria) {
+                    evaluationSetup.hostCriteria.forEach((criteria) => {
+                        const jsonCriteria = jsonData.hostCriteria.find(c => c.id === criteria.id);
+                        if (jsonCriteria && jsonCriteria.maxScore) {
+                            criteria.maxScore = jsonCriteria.maxScore;
+                        }
+                    });
+                }
+                
+                // Đảm bảo ratingLevels được load
+                if (jsonData && jsonData.ratingLevels) {
+                    evaluationSetup.ratingLevels = jsonData.ratingLevels;
+                }
+                
+                evaluationLoaded = true;
+            } catch (error) {
+                console.error('❌ Lỗi load JSON để merge maxScore:', error);
+                if (!evaluationLoaded) {
+                    initializeDefaultEvaluation();
+                }
+            }
             
             // Lưu evaluatedPlayers để sử dụng sau
             window.evaluatedPlayers = data.evaluatedPlayers;

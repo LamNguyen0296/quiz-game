@@ -149,16 +149,72 @@ function saveScoresToFile(hostName, roomCode, players) {
 function saveEvaluationLogs(hostName, roomCode, evaluations) {
     try {
         const filePath = getEvaluationLogsFilePath(hostName);
-        
-        const data = {
+
+        // Khởi tạo cấu trúc mặc định
+        const baseData = {
             hostName: hostName,
             roomCode: roomCode,
-            evaluations: evaluations,
+            evaluations: { host: {}, members: {}, teachers: {} },
             savedAt: new Date().toISOString(),
             lastUpdated: new Date().toISOString()
         };
 
-        fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+        let existing = null;
+        if (fs.existsSync(filePath)) {
+            try {
+                existing = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            } catch {}
+        }
+
+        // Bắt đầu từ existing hoặc base
+        const merged = existing && typeof existing === 'object' ? existing : baseData;
+        if (!merged.evaluations) merged.evaluations = { host: {}, members: {}, teachers: {} };
+        if (!merged.evaluations.host) merged.evaluations.host = {};
+        if (!merged.evaluations.members) merged.evaluations.members = {};
+        if (!merged.evaluations.teachers) merged.evaluations.teachers = {};
+
+        // Merge HOST evaluations
+        if (evaluations && evaluations.host) {
+            Object.keys(evaluations.host).forEach(memberId => {
+                merged.evaluations.host[memberId] = {
+                    ...(merged.evaluations.host[memberId] || {}),
+                    ...evaluations.host[memberId]
+                };
+            });
+        }
+
+        // Merge MEMBERS evaluations (peer-to-peer)
+        if (evaluations && evaluations.members) {
+            Object.keys(evaluations.members).forEach(evaluatorId => {
+                const evalsForPeers = evaluations.members[evaluatorId] || {};
+                if (!merged.evaluations.members[evaluatorId]) merged.evaluations.members[evaluatorId] = {};
+                Object.keys(evalsForPeers).forEach(peerId => {
+                    merged.evaluations.members[evaluatorId][peerId] = {
+                        ...(merged.evaluations.members[evaluatorId][peerId] || {}),
+                        ...evalsForPeers[peerId]
+                    };
+                });
+            });
+        }
+
+        // Merge TEACHERS evaluations
+        if (evaluations && evaluations.teachers) {
+            Object.keys(evaluations.teachers).forEach(teacherId => {
+                const evalsForPeers = evaluations.teachers[teacherId] || {};
+                if (!merged.evaluations.teachers[teacherId]) merged.evaluations.teachers[teacherId] = {};
+                Object.keys(evalsForPeers).forEach(peerId => {
+                    merged.evaluations.teachers[teacherId][peerId] = {
+                        ...(merged.evaluations.teachers[teacherId][peerId] || {}),
+                        ...evalsForPeers[peerId]
+                    };
+                });
+            });
+        }
+
+        merged.roomCode = roomCode; // cập nhật mã phòng hiện tại
+        merged.lastUpdated = new Date().toISOString();
+
+        fs.writeFileSync(filePath, JSON.stringify(merged, null, 2));
         console.log(`📊 Evaluation logs saved for ${hostName}`);
         return true;
     } catch (error) {
