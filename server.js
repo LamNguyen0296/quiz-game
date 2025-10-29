@@ -1173,7 +1173,58 @@ io.on('connection', (socket) => {
                 }
             }
             
-            // 4. Reset evaluation scores trong room
+            // 4. Xóa quiz details của nhóm này
+            const safeHostName = sanitizeFileName(hostPlayer.name);
+            const safeRoomCode = sanitizeFileName(roomCode);
+            const quizDetailsPath = path.join(__dirname, 'quiz-details', `${safeHostName}-${safeRoomCode}-quiz-details.json`);
+            if (fs.existsSync(quizDetailsPath)) {
+                const quizDetailsData = JSON.parse(fs.readFileSync(quizDetailsPath, 'utf8'));
+                if (quizDetailsData.results && Array.isArray(quizDetailsData.results)) {
+                    // Xóa kết quả của nhóm này
+                    const beforeCount = quizDetailsData.results.length;
+                    quizDetailsData.results = quizDetailsData.results.filter(r => r.playerId !== groupId && r.playerName !== group.name);
+                    const afterCount = quizDetailsData.results.length;
+                    
+                    if (beforeCount !== afterCount) {
+                        fs.writeFileSync(quizDetailsPath, JSON.stringify(quizDetailsData, null, 2));
+                        console.log(`🗑️ Đã xóa quiz details của ${group.name} trong file quiz-details`);
+                    }
+                }
+            }
+            
+            // 5. Xóa evaluation details của nhóm này
+            const evalDetailsPath = path.join(__dirname, 'evaluation-details', `${safeHostName}-${safeRoomCode}-evaluation-details.json`);
+            if (fs.existsSync(evalDetailsPath)) {
+                const evalDetailsData = JSON.parse(fs.readFileSync(evalDetailsPath, 'utf8'));
+                if (evalDetailsData.memberDetails && Array.isArray(evalDetailsData.memberDetails)) {
+                    // Xóa chi tiết đánh giá của nhóm này
+                    const beforeCount = evalDetailsData.memberDetails.length;
+                    evalDetailsData.memberDetails = evalDetailsData.memberDetails.filter(m => m.memberId !== groupId && m.memberName !== group.name);
+                    const afterCount = evalDetailsData.memberDetails.length;
+                    
+                    if (beforeCount !== afterCount) {
+                        // Cập nhật summary
+                        if (evalDetailsData.summary) {
+                            evalDetailsData.summary.totalMembers = afterCount;
+                            // Tính lại average scores nếu cần
+                            if (afterCount > 0) {
+                                const totalHostScore = evalDetailsData.memberDetails.reduce((sum, m) => sum + (m.hostEvaluation?.totalScore || 0), 0);
+                                const totalPeerScore = evalDetailsData.memberDetails.reduce((sum, m) => sum + (m.peerAverageScore || 0), 0);
+                                evalDetailsData.summary.averageHostScore = totalHostScore / afterCount;
+                                evalDetailsData.summary.averagePeerScore = totalPeerScore / afterCount;
+                            } else {
+                                evalDetailsData.summary.averageHostScore = 0;
+                                evalDetailsData.summary.averagePeerScore = 0;
+                            }
+                        }
+                        
+                        fs.writeFileSync(evalDetailsPath, JSON.stringify(evalDetailsData, null, 2));
+                        console.log(`🗑️ Đã xóa evaluation details của ${group.name} trong file evaluation-details`);
+                    }
+                }
+            }
+            
+            // 6. Reset evaluation scores trong room
             if (room.evaluationScoresAdded) {
                 if (room.evaluationScoresAdded.host && room.evaluationScoresAdded.host[groupId]) {
                     delete room.evaluationScoresAdded.host[groupId];
@@ -1186,7 +1237,7 @@ io.on('connection', (socket) => {
                 }
             }
             
-            // 5. Reset evaluations trong room
+            // 7. Reset evaluations trong room
             if (room.evaluations) {
                 if (room.evaluations.host && room.evaluations.host[groupId]) {
                     delete room.evaluations.host[groupId];
@@ -1209,7 +1260,7 @@ io.on('connection', (socket) => {
                 }
             }
             
-            // 6. Broadcast lại danh sách players
+            // 8. Broadcast lại danh sách players
             io.to(roomCode).emit('players-list', { players: getVisiblePlayers(room.players) });
             
             console.log(`✅ Đã xóa thành công điểm và logs của nhóm ${group.name} (${groupId})`);
