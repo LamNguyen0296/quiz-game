@@ -373,6 +373,35 @@
             justify-content: center;
         }
 
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 2000;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 600px;
+        }
+
         .detail-modal-content {
             background: white;
             border-radius: 10px;
@@ -947,6 +976,7 @@
                 <button class="btn" onclick="openQuizDetails()" id="quizDetailsBtn" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">📊 Xem chi tiết Quiz</button>
                 <button class="btn" onclick="openEvaluation()" id="evaluationBtn" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">⭐ Đánh giá</button>
                 <button class="btn" onclick="openEvaluationDetails()" id="evaluationDetailsBtn" style="background: linear-gradient(135deg, #36d1dc 0%, #5b86e5 100%);">📑 Xem chi tiết đánh giá</button>
+                <button class="btn" onclick="openResetGroupModal()" id="resetGroupBtn" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);">🗑️ Xóa điểm nhóm</button>
                 <button class="btn btn-danger" onclick="showFinalResults()" id="finalBtn" style="margin-left:8px;">🏁 Kết thúc</button>
             </div>
 
@@ -1019,6 +1049,37 @@
                 </button>
                 <div style="margin-top: 20px;">
                     <button class="btn" onclick="goToWelcome()">🏠 Về trang chủ</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reset Group Modal -->
+        <div id="resetGroupModal" class="modal" style="display: none;" onclick="if(event.target === this) closeResetGroupModal();">
+            <div class="modal-content" style="max-width: 500px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0; color: #dc3545;">🗑️ Xóa điểm và logs nhóm</h2>
+                    <button onclick="closeResetGroupModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>
+                </div>
+                
+                <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
+                    <strong>⚠️ Cảnh báo:</strong> Hành động này sẽ xóa <strong>tất cả điểm và logs</strong> của nhóm được chọn. Bạn có chắc chắn muốn tiếp tục?
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 10px; font-weight: 600;">Chọn nhóm cần xóa:</label>
+                    <select id="resetGroupSelect" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px;">
+                        <option value="">-- Chọn nhóm --</option>
+                    </select>
+                </div>
+
+                <div id="selectedGroupInfo" style="display: none; background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <div style="font-weight: 600; margin-bottom: 10px;">Thông tin nhóm:</div>
+                    <div id="groupInfoContent"></div>
+                </div>
+
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button class="btn" onclick="closeResetGroupModal()">Hủy</button>
+                    <button class="btn btn-danger" onclick="confirmResetGroup()" id="confirmResetBtn" disabled>Xác nhận xóa</button>
                 </div>
             </div>
         </div>
@@ -2265,6 +2326,104 @@
             grid.appendChild(fourth);
         }
 
+        // Mở modal xóa điểm nhóm
+        function openResetGroupModal() {
+            if (!isHost) return;
+            
+            const modal = document.getElementById('resetGroupModal');
+            const select = document.getElementById('resetGroupSelect');
+            const confirmBtn = document.getElementById('confirmResetBtn');
+            
+            // Reset modal state
+            select.innerHTML = '<option value="">-- Chọn nhóm --</option>';
+            confirmBtn.disabled = true;
+            document.getElementById('selectedGroupInfo').style.display = 'none';
+            
+            // Load danh sách nhóm từ lobby
+            socket.emit('get-players');
+            
+            socket.once('players-list', (data) => {
+                const groups = data.players.filter(p => !p.isHost && !p.name.startsWith('Thầy/Cô: ') && !p.id.startsWith('default-member-'));
+                
+                groups.forEach(group => {
+                    const option = document.createElement('option');
+                    option.value = group.id;
+                    option.textContent = `${group.name} (Điểm: ${group.score || 0})`;
+                    option.dataset.groupName = group.name;
+                    option.dataset.groupScore = group.score || 0;
+                    select.appendChild(option);
+                });
+                
+                // Show modal
+                modal.style.display = 'flex';
+                modal.classList.add('active');
+            });
+            
+            // Handle selection change (only add once)
+            if (!select.hasAttribute('data-listener-added')) {
+                select.addEventListener('change', function() {
+                    const selectedOption = select.options[select.selectedIndex];
+                    if (select.value) {
+                        confirmBtn.disabled = false;
+                        document.getElementById('selectedGroupInfo').style.display = 'block';
+                        document.getElementById('groupInfoContent').innerHTML = `
+                            <div><strong>Tên nhóm:</strong> ${selectedOption.dataset.groupName}</div>
+                            <div><strong>Điểm hiện tại:</strong> ${selectedOption.dataset.groupScore} điểm</div>
+                        `;
+                    } else {
+                        confirmBtn.disabled = true;
+                        document.getElementById('selectedGroupInfo').style.display = 'none';
+                    }
+                });
+                select.setAttribute('data-listener-added', 'true');
+            }
+        }
+
+        // Đóng modal xóa điểm nhóm
+        function closeResetGroupModal() {
+            const modal = document.getElementById('resetGroupModal');
+            modal.style.display = 'none';
+            modal.classList.remove('active');
+            document.getElementById('resetGroupSelect').value = '';
+            document.getElementById('confirmResetBtn').disabled = true;
+            document.getElementById('selectedGroupInfo').style.display = 'none';
+        }
+
+        // Xác nhận xóa điểm nhóm
+        function confirmResetGroup() {
+            const select = document.getElementById('resetGroupSelect');
+            const groupId = select.value;
+            const groupName = select.options[select.selectedIndex].dataset.groupName;
+            
+            if (!groupId) {
+                alert('Vui lòng chọn nhóm cần xóa!');
+                return;
+            }
+            
+            if (!confirm(`Bạn có chắc chắn muốn xóa tất cả điểm và logs của nhóm "${groupName}"?\n\nHành động này không thể hoàn tác!`)) {
+                return;
+            }
+            
+            socket.emit('reset-group-data', {
+                roomCode: currentRoom,
+                groupId: groupId,
+                groupName: groupName
+            });
+            
+            closeResetGroupModal();
+        }
+
+        // Nhận kết quả xóa điểm nhóm
+        socket.on('group-reset-success', (data) => {
+            alert(`✅ Đã xóa thành công điểm và logs của nhóm "${data.groupName}"!`);
+            // Refresh player list
+            socket.emit('get-players');
+        });
+
+        socket.on('group-reset-error', (data) => {
+            alert(`❌ Lỗi: ${data.message}`);
+        });
+
         // Hiển thị modal chi tiết
         function showDetailModal(resultIndex) {
             const result = quizResults[resultIndex];
@@ -3428,14 +3587,41 @@
                 originalPlayersListHandler(data);
             }
             
-            // If we're in evaluation mode, render evaluation form
-            if (document.getElementById('hostEvaluationScreen').classList.contains('active')) {
-                renderHostEvaluationWithPlayers(data.players);
+            // CHỈ render lại form evaluation khi form chưa có dữ liệu HOẶC chưa có lựa chọn nào được chọn
+            // Tránh render lại khi đang trong quá trình đánh giá để không mất dữ liệu đã chọn
+            
+            // If we're in evaluation mode, only render if form is empty or no selections made
+            const hostScreen = document.getElementById('hostEvaluationScreen');
+            if (hostScreen && hostScreen.classList.contains('active')) {
+                const hostForm = document.getElementById('hostEvalMembers');
+                if (hostForm) {
+                    const hasSelections = hostForm.querySelectorAll('input[type="radio"]:checked').length > 0;
+                    // Nếu đã có lựa chọn, KHÔNG render lại để giữ nguyên dữ liệu
+                    if (!hasSelections) {
+                        const isEmpty = !hostForm.innerHTML || hostForm.innerHTML.trim() === '';
+                        // Chỉ render lại nếu form trống
+                        if (isEmpty) {
+                            renderHostEvaluationWithPlayers(data.players);
+                        }
+                    }
+                }
             }
             
-            // If we're in member evaluation mode, render member evaluation form
-            if (document.getElementById('memberEvaluationScreen').classList.contains('active')) {
+            // If we're in member evaluation mode, only render if form is empty or no selections made
+            const memberScreen = document.getElementById('memberEvaluationScreen');
+            if (memberScreen && memberScreen.classList.contains('active')) {
+                const memberForm = document.getElementById('memberEvalPeers');
+                if (memberForm) {
+                    const hasSelections = memberForm.querySelectorAll('input[type="radio"]:checked').length > 0;
+                    // Nếu đã có lựa chọn, KHÔNG render lại để giữ nguyên dữ liệu
+                    if (!hasSelections) {
+                        const isEmpty = !memberForm.innerHTML || memberForm.innerHTML.trim() === '';
+                        // Chỉ render lại nếu form trống
+                        if (isEmpty) {
                 renderMemberEvaluationWithPlayers(data.players);
+                        }
+                    }
+                }
             }
         });
     </script>

@@ -1092,6 +1092,135 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Xóa điểm và logs của một nhóm
+    socket.on('reset-group-data', (data) => {
+        const { roomCode, groupId, groupName } = data;
+        const room = rooms.get(roomCode);
+        
+        if (!room) {
+            socket.emit('group-reset-error', { message: 'Không tìm thấy phòng!' });
+            return;
+        }
+        
+        // Chỉ host mới có quyền xóa
+        if (room.host !== socket.id) {
+            socket.emit('group-reset-error', { message: 'Chỉ host mới có thể xóa điểm nhóm!' });
+            return;
+        }
+        
+        // Tìm nhóm trong room
+        const group = room.players.find(p => p.id === groupId && !p.isHost && !p.name.startsWith('Thầy/Cô: '));
+        if (!group) {
+            socket.emit('group-reset-error', { message: 'Không tìm thấy nhóm!' });
+            return;
+        }
+        
+        const hostPlayer = room.players.find(p => p.isHost);
+        if (!hostPlayer) {
+            socket.emit('group-reset-error', { message: 'Không tìm thấy host!' });
+            return;
+        }
+        
+        try {
+            // 1. Reset điểm trong room
+            group.score = 0;
+            
+            // 2. Xóa điểm trong file scores
+            const scoresPath = getScoresFilePath(hostPlayer.name);
+            if (fs.existsSync(scoresPath)) {
+                const scoresData = JSON.parse(fs.readFileSync(scoresPath, 'utf8'));
+                if (scoresData.scores) {
+                    // Xóa điểm của nhóm này
+                    scoresData.scores = scoresData.scores.filter(s => s.name !== group.name);
+                    fs.writeFileSync(scoresPath, JSON.stringify(scoresData, null, 2));
+                    console.log(`🗑️ Đã xóa điểm của ${group.name} trong file scores`);
+                }
+            }
+            
+            // 3. Xóa logs trong file evaluation logs
+            const logsKey = hostPlayer.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const logsPath = path.join(__dirname, 'quizzes', `${logsKey}-evaluation-logs.json`);
+            if (fs.existsSync(logsPath)) {
+                const logsData = JSON.parse(fs.readFileSync(logsPath, 'utf8'));
+                if (logsData.evaluations) {
+                    // Xóa đánh giá của nhóm này trong host evaluations
+                    if (logsData.evaluations.host && logsData.evaluations.host[groupId]) {
+                        delete logsData.evaluations.host[groupId];
+                    }
+                    
+                    // Xóa đánh giá của nhóm này trong member evaluations
+                    if (logsData.evaluations.members) {
+                        Object.keys(logsData.evaluations.members).forEach(evaluatorId => {
+                            const memberEval = logsData.evaluations.members[evaluatorId];
+                            if (memberEval && memberEval[groupId]) {
+                                delete memberEval[groupId];
+                            }
+                        });
+                    }
+                    
+                    // Xóa đánh giá của nhóm này trong teacher evaluations
+                    if (logsData.evaluations.teachers) {
+                        Object.keys(logsData.evaluations.teachers).forEach(teacherId => {
+                            const teacherEval = logsData.evaluations.teachers[teacherId];
+                            if (teacherEval && teacherEval[groupId]) {
+                                delete teacherEval[groupId];
+                            }
+                        });
+                    }
+                    
+                    fs.writeFileSync(logsPath, JSON.stringify(logsData, null, 2));
+                    console.log(`🗑️ Đã xóa logs đánh giá của ${group.name} trong file evaluation logs`);
+                }
+            }
+            
+            // 4. Reset evaluation scores trong room
+            if (room.evaluationScoresAdded) {
+                if (room.evaluationScoresAdded.host && room.evaluationScoresAdded.host[groupId]) {
+                    delete room.evaluationScoresAdded.host[groupId];
+                }
+                if (room.evaluationScoresAdded.members && room.evaluationScoresAdded.members[groupId]) {
+                    delete room.evaluationScoresAdded.members[groupId];
+                }
+                if (room.evaluationScoresAdded.teachers && room.evaluationScoresAdded.teachers[groupId]) {
+                    delete room.evaluationScoresAdded.teachers[groupId];
+                }
+            }
+            
+            // 5. Reset evaluations trong room
+            if (room.evaluations) {
+                if (room.evaluations.host && room.evaluations.host[groupId]) {
+                    delete room.evaluations.host[groupId];
+                }
+                if (room.evaluations.members) {
+                    Object.keys(room.evaluations.members).forEach(evaluatorId => {
+                        const memberEval = room.evaluations.members[evaluatorId];
+                        if (memberEval && memberEval[groupId]) {
+                            delete memberEval[groupId];
+                        }
+                    });
+                }
+                if (room.evaluations.teachers) {
+                    Object.keys(room.evaluations.teachers).forEach(teacherId => {
+                        const teacherEval = room.evaluations.teachers[teacherId];
+                        if (teacherEval && teacherEval[groupId]) {
+                            delete teacherEval[groupId];
+                        }
+                    });
+                }
+            }
+            
+            // 6. Broadcast lại danh sách players
+            io.to(roomCode).emit('players-list', { players: getVisiblePlayers(room.players) });
+            
+            console.log(`✅ Đã xóa thành công điểm và logs của nhóm ${group.name} (${groupId})`);
+            socket.emit('group-reset-success', { groupName: group.name, groupId: groupId });
+            
+        } catch (error) {
+            console.error('❌ Lỗi khi xóa điểm và logs của nhóm:', error);
+            socket.emit('group-reset-error', { message: `Lỗi khi xóa: ${error.message}` });
+        }
+    });
+
     // Cập nhật điểm của member (chỉ host)
     socket.on('update-player-score', (data) => {
         if (socket.roomCode && rooms.has(socket.roomCode)) {
@@ -1450,18 +1579,22 @@ io.on('connection', (socket) => {
             
             // Log chi tiết đánh giá của member
             console.log(`🔍 Member evaluation details from ${evaluatorPlayer?.name || 'Unknown'}:`);
+            console.log(`   📊 Using memberCriteria with maxScores:`, room.evaluationSetup?.memberCriteria?.map(c => `${c.name}: ${c.maxScore}`).join(', ') || 'N/A');
             Object.keys(evaluations).forEach(peerId => {
                 const peer = room.players.find(p => p.id === peerId);
                 if (peer) {
                     console.log(`   👤 ${peer.name}:`);
+                    let totalScore = 0;
                     Object.keys(evaluations[peerId]).forEach(criteriaId => {
                         const criteria = room.evaluationSetup?.memberCriteria?.find(c => c.id == criteriaId);
                         const levelId = evaluations[peerId][criteriaId];
                         const level = room.evaluationSetup?.ratingLevels?.find(l => l.id === levelId);
                         const score = criteria ? (criteria.maxScore / 4) * levelId : 0;
+                        totalScore += score;
                         
-                        console.log(`      📋 ${criteria?.name || 'Unknown'}: ${level?.name || 'Unknown'} (${levelId}) = ${score}/${criteria?.maxScore || 0} điểm`);
+                        console.log(`      📋 ${criteria?.name || 'Unknown'}: ${level?.name || 'Unknown'} (${levelId}) = ${score.toFixed(2)}/${criteria?.maxScore || 0} điểm (maxScore: ${criteria?.maxScore || 0})`);
                     });
+                    console.log(`      ✅ Tổng điểm: ${totalScore.toFixed(2)} / ${room.evaluationSetup?.memberCriteria?.reduce((sum, c) => sum + c.maxScore, 0) || 0} điểm`);
                 }
             });
             
@@ -1481,6 +1614,26 @@ io.on('connection', (socket) => {
             if (isTeacher) {
                 // XỬ LÝ ĐÁNH GIÁ CỦA THẦY/CÔ - TÍNH TRUNG BÌNH CỘNG
                 console.log(`👨‍🏫 Teacher evaluation from ${evaluatorPlayer.name}`);
+                console.log(`   📊 Using memberCriteria with maxScores:`, room.evaluationSetup?.memberCriteria?.map(c => `${c.name}: ${c.maxScore}`).join(', ') || 'N/A');
+                
+                // Log chi tiết đánh giá của teacher
+                Object.keys(evaluations).forEach(peerId => {
+                    const peer = room.players.find(p => p.id === peerId);
+                    if (peer) {
+                        console.log(`   👤 ${peer.name}:`);
+                        let totalScore = 0;
+                        Object.keys(evaluations[peerId]).forEach(criteriaId => {
+                            const criteria = room.evaluationSetup?.memberCriteria?.find(c => c.id == criteriaId);
+                            const levelId = evaluations[peerId][criteriaId];
+                            const level = room.evaluationSetup?.ratingLevels?.find(l => l.id === levelId);
+                            const score = criteria ? (criteria.maxScore / 4) * levelId : 0;
+                            totalScore += score;
+                            
+                            console.log(`      📋 ${criteria?.name || 'Unknown'}: ${level?.name || 'Unknown'} (${levelId}) = ${score.toFixed(2)}/${criteria?.maxScore || 0} điểm (maxScore: ${criteria?.maxScore || 0})`);
+                        });
+                        console.log(`      ✅ Tổng điểm: ${totalScore.toFixed(2)} / ${room.evaluationSetup?.memberCriteria?.reduce((sum, c) => sum + c.maxScore, 0) || 0} điểm`);
+                    }
+                });
                 
                 // Lưu đánh giá của thầy/cô
                 if (!room.evaluations.teachers) {
