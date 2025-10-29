@@ -376,6 +376,9 @@ function endQuiz(room, roomCode) {
         const correctAnswers = details.filter(d => d.isCorrect).length;
 
         player.score = score;
+        
+        // Lưu điểm quiz gốc trước khi cộng đánh giá
+        player.originalQuizScore = score;
 
         results.push({
             playerId: player.id,
@@ -1130,19 +1133,40 @@ io.on('connection', (socket) => {
                 socket.emit('error', { message: 'Chỉ host mới có thể hiển thị chung cuộc!' });
                 return;
             }
-            let results = room.lastQuizResults;
-            if (!results || !Array.isArray(results) || results.length === 0) {
-                // Fallback: lấy theo điểm hiện tại
-                results = getQuizPlayers(room.players).map(p => ({
-                    playerId: p.id,
-                    playerName: p.name,
-                    score: p.score || 0,
-                    totalQuestions: room.quiz?.questions?.length || 0,
-                    correctAnswers: 0,
-                    details: []
+            
+            let results = [];
+            
+            // Nếu có đánh giá hoàn chỉnh, sử dụng kết quả từ calculateEvaluationResults
+            if (room.evaluations && room.evaluationSetup) {
+                const evaluationResults = calculateEvaluationResults(room);
+                results = Object.values(evaluationResults).map(result => ({
+                    playerId: result.name, // Sử dụng name làm ID cho compatibility
+                    playerName: result.name,
+                    score: result.totalScore,
+                    quizScore: result.quizScore,
+                    hostScore: result.hostScore,
+                    peerScore: result.peerScore,
+                    teacherScore: result.teacherScore,
+                    totalScore: result.totalScore,
+                    details: result.details
                 }));
-                results.sort((a, b) => b.score - a.score);
+                results.sort((a, b) => b.totalScore - a.totalScore);
+            } else {
+                // Fallback: sử dụng kết quả quiz cũ
+                results = room.lastQuizResults || [];
+                if (!results || !Array.isArray(results) || results.length === 0) {
+                    results = getQuizPlayers(room.players).map(p => ({
+                        playerId: p.id,
+                        playerName: p.name,
+                        score: p.score || 0,
+                        totalQuestions: room.quiz?.questions?.length || 0,
+                        correctAnswers: 0,
+                        details: []
+                    }));
+                    results.sort((a, b) => b.score - a.score);
+                }
             }
+            
             const top = results.slice(0, 4);
             io.to(socket.roomCode).emit('final-results', { results: top });
         }
@@ -2314,7 +2338,10 @@ function calculateEvaluationResults(room) {
     const members = getEvaluatedPlayers(players);
     
     members.forEach(member => {
-        // Điểm từ host (đã được cộng vào score)
+        // 1. Điểm quiz ban đầu (chưa có đánh giá)
+        const quizScore = member.originalQuizScore || 0; // Điểm quiz gốc
+        
+        // 2. Điểm từ host evaluation
         const hostEval = evaluations.host[member.id] || {};
         let hostScore = 0;
         Object.keys(hostEval).forEach(criteriaId => {
@@ -2325,7 +2352,7 @@ function calculateEvaluationResults(room) {
             }
         });
         
-        // Điểm từ peers (loại bỏ tự đánh giá, member mặc định và không tính điểm từ việc đánh giá Thầy/Cô)
+        // 3. Điểm từ peers (các nhóm đánh giá nhau)
         let peerScores = [];
         Object.keys(evaluations.members).forEach(evaluatorId => {
             // Bỏ qua nếu người đánh giá chính là người được đánh giá hoặc là member mặc định
@@ -2358,15 +2385,42 @@ function calculateEvaluationResults(room) {
             ? peerScores.reduce((a, b) => a + b, 0) / peerScores.length 
             : 0;
         
+        // 4. Điểm từ teachers (trung bình của các thầy cô)
+        let teacherScores = [];
+        Object.keys(evaluations.teachers || {}).forEach(teacherId => {
+            const teacherEval = evaluations.teachers[teacherId];
+            const teacherRating = teacherEval[member.id];
+            if (teacherRating) {
+                let teacherScore = 0;
+                Object.keys(teacherRating).forEach(criteriaId => {
+                    const levelId = teacherRating[criteriaId];
+                    const criteria = evaluationSetup.memberCriteria.find(c => c.id == criteriaId);
+                    if (criteria) {
+                        teacherScore += (criteria.maxScore / 4) * levelId; // Công thức: (maxScore/4) × id
+                    }
+                });
+                teacherScores.push(teacherScore);
+            }
+        });
+        
+        const avgTeacherScore = teacherScores.length > 0 
+            ? teacherScores.reduce((a, b) => a + b, 0) / teacherScores.length 
+            : 0;
+        
+        // 5. Tổng điểm cuối cùng = Quiz + Host + Peer + Teacher
+        const finalTotalScore = quizScore + hostScore + avgPeerScore + avgTeacherScore;
+        
         results[member.id] = {
             name: member.name,
-            currentScore: member.score, // Điểm hiện tại (đã bao gồm đánh giá)
-            hostScore: hostScore,
-            peerScore: avgPeerScore,
-            totalScore: member.score, // Tổng điểm cuối cùng
+            quizScore: quizScore, // Điểm quiz gốc
+            hostScore: hostScore, // Điểm đánh giá chủ phòng
+            peerScore: avgPeerScore, // Điểm trung bình từ các nhóm
+            teacherScore: avgTeacherScore, // Điểm trung bình từ thầy cô
+            totalScore: finalTotalScore, // Tổng điểm cuối cùng
             details: {
                 hostEvaluation: hostEval,
-                peerEvaluations: peerScores
+                peerEvaluations: peerScores,
+                teacherEvaluations: teacherScores
             }
         };
     });
