@@ -1283,9 +1283,11 @@ io.on('connection', (socket) => {
         if (room && room.host === socket.id) {
             room.evaluationSetup = setup;
             room.evaluationActive = true;
+            room.evaluationPhase = 'host'; // phases: host -> members -> teachers
             room.evaluations = {
                 host: null,
-                members: {}
+                members: {},
+                teachers: {}
             };
             
             // Broadcast đến tất cả members
@@ -1296,8 +1298,12 @@ io.on('connection', (socket) => {
                 setup: setup,
                 players: getVisiblePlayers(room.players),
                 evaluablePlayers: getEvaluablePlayers(room.players), // Những người có thể đánh giá (bao gồm Thầy/Cô)
-                evaluatedPlayers: evaluatedPlayers // Những người có thể được đánh giá (không bao gồm Thầy/Cô)
+                evaluatedPlayers: evaluatedPlayers, // Những người có thể được đánh giá (không bao gồm Thầy/Cô)
+                phase: 'host'
             });
+
+            // Thông báo phase ban đầu
+            io.to(roomCode).emit('evaluation-phase', { phase: 'host' });
             
             console.log(`Evaluation started for room ${roomCode}`);
         }
@@ -1397,6 +1403,10 @@ io.on('connection', (socket) => {
             });
             
             console.log(`🎯 Evaluation scores added to quiz scores for room ${roomCode}`);
+
+            // Chuyển phase sang members sau khi Host hoàn thành
+            room.evaluationPhase = 'members';
+            io.to(roomCode).emit('evaluation-phase', { phase: 'members' });
         }
     });
 
@@ -1406,6 +1416,20 @@ io.on('connection', (socket) => {
         const room = rooms.get(roomCode);
         
         if (room) {
+            // Kiểm tra phase
+            const evaluatorPlayerPhase = room.players.find(p => p.id === evaluatorId);
+            const isTeacherPhase = evaluatorPlayerPhase && evaluatorPlayerPhase.name.startsWith('Thầy/Cô: ');
+            if (!room.evaluationPhase) {
+                room.evaluationPhase = 'host';
+            }
+            if (!isTeacherPhase && room.evaluationPhase !== 'members') {
+                socket.emit('error', { message: 'Chỉ được đánh giá sau khi Host hoàn thành.' });
+                return;
+            }
+            if (isTeacherPhase && room.evaluationPhase !== 'teachers') {
+                socket.emit('error', { message: 'Thầy/Cô sẽ đánh giá sau khi các nhóm hoàn thành.' });
+                return;
+            }
             // Kiểm tra member không đánh giá Thầy/Cô
             const hasEvaluatedTeacher = Object.keys(evaluations).some(memberId => {
                 const member = room.players.find(p => p.id === memberId);
@@ -1558,8 +1582,8 @@ io.on('connection', (socket) => {
             
             console.log(`🎯 Member evaluation scores added immediately for room ${roomCode}`);
             
-            // Kiểm tra xem tất cả đã đánh giá chưa
-            checkEvaluationComplete(room, roomCode);
+            // Kiểm tra xem tất cả đã đánh giá chưa/ chuyển phase
+            checkEvaluationProgress(room, roomCode);
         }
     });
 });
@@ -1820,6 +1844,115 @@ function calculateEvaluationScore(evaluations, criteria) {
 }
 
 // Kiểm tra và tính kết quả khi tất cả đã đánh giá
+function hasTeachers(room) {
+    return room.players.some(p => p.name && p.name.startsWith('Thầy/Cô: '));
+}
+
+function allMembersCompleted(room) {
+    const evaluablePlayers = getEvaluablePlayers(room.players).filter(p => !p.name.startsWith('Thầy/Cô: '));
+    const evaluatedPlayers = getEvaluatedPlayers(room.players).filter(p => !p.id.startsWith('default-member-'));
+    
+    console.log(`🔍 allMembersCompleted check:`);
+    console.log(`   - evaluablePlayers: ${evaluablePlayers.map(p => `${p.name}(${p.id})`).join(', ')}`);
+    console.log(`   - evaluatedPlayers: ${evaluatedPlayers.map(p => `${p.name}(${p.id})`).join(', ')}`);
+    
+    // Chỉ kiểm tra các nhóm còn online (không phải default member)
+    if (evaluablePlayers.length === 0) {
+        console.log(`   - No evaluable players, returning false`);
+        return false; // Không có nhóm nào online thì chưa hoàn thành
+    }
+    
+    // Nếu không có nhóm nào được đánh giá thì chưa hoàn thành
+    if (evaluatedPlayers.length === 0) {
+        console.log(`   - No evaluated players, returning false`);
+        return false;
+    }
+    
+    // Kiểm tra tất cả các nhóm online đã đánh giá chưa
+    const result = evaluablePlayers.every(evaluator => {
+        const evaluatorEvaluations = room.evaluations.members[evaluator.id] || {};
+        console.log(`   - Checking ${evaluator.name} (${evaluator.id}):`);
+        // Kiểm tra evaluator đã đánh giá tất cả các nhóm online chưa (trừ chính mình)
+        const hasEvaluatedAll = evaluatedPlayers.every(target => {
+            // Không tự đánh giá và đã đánh giá target này
+            if (target.id === evaluator.id) {
+                console.log(`     - ${target.name}: self (skip)`);
+                return true; // Không tự đánh giá là OK
+            }
+            const hasEvaluated = evaluatorEvaluations[target.id] !== undefined;
+            console.log(`     - ${target.name}: ${hasEvaluated ? '✅' : '❌'}`);
+            return hasEvaluated;
+        });
+        console.log(`     - Has evaluated all: ${hasEvaluatedAll}`);
+        return hasEvaluatedAll;
+    });
+    
+    console.log(`   - Final result: ${result}`);
+    return result;
+}
+
+function allTeachersCompleted(room) {
+    const teachers = room.players.filter(p => p.name && p.name.startsWith('Thầy/Cô: '));
+    if (teachers.length === 0) return true;
+    if (!room.evaluations.teachers) return false;
+    const evaluatedPlayers = getEvaluatedPlayers(room.players);
+    return teachers.every(t => {
+        const evals = room.evaluations.teachers[t.id];
+        if (!evals) return false;
+        return evaluatedPlayers.every(target => !!evals[target.id]);
+    });
+}
+
+function checkEvaluationProgress(room, roomCode) {
+    // Ensure host has completed first
+    if (!room.evaluations.host) {
+        return;
+    }
+    if (!room.evaluationPhase) room.evaluationPhase = 'host';
+
+    if (room.evaluationPhase === 'members') {
+        const isCompleted = allMembersCompleted(room);
+        console.log(`🔍 Checking members completion: ${isCompleted}`);
+        if (isCompleted) {
+            // Move to teachers or finalize if no teachers
+            if (hasTeachers(room)) {
+                console.log('📋 All members completed, moving to teachers phase');
+                room.evaluationPhase = 'teachers';
+                io.to(roomCode).emit('evaluation-phase', { phase: 'teachers' });
+            } else {
+                console.log('📋 All members completed, no teachers, finalizing');
+                finalizeEvaluations(room, roomCode);
+            }
+        } else {
+            console.log('📋 Members still evaluating...');
+        }
+        return;
+    }
+    if (room.evaluationPhase === 'teachers') {
+        if (allTeachersCompleted(room)) {
+            finalizeEvaluations(room, roomCode);
+        }
+        return;
+    }
+}
+
+function finalizeEvaluations(room, roomCode) {
+    console.log('📊 All evaluations submitted. Finalizing results...');
+    const hostPlayer = room.players.find(p => p.isHost);
+    const results = calculateEvaluationResults(room);
+    if (hostPlayer) {
+        saveEvaluationResults(hostPlayer.name, roomCode, results);
+        try {
+            const saveResult = saveEvaluationDetails(hostPlayer.name, roomCode, room.evaluationSetup, room.evaluations, room.players);
+            console.log('   - Save result:', saveResult);
+        } catch (error) {
+            console.error('   - Error saving evaluation details:', error);
+        }
+    }
+    io.to(roomCode).emit('evaluation-results', { results });
+    io.to(roomCode).emit('all-evaluations-complete', { roomCode });
+}
+
 function checkEvaluationComplete(room, roomCode) {
     // Kiểm tra hoàn thành đánh giá: Host đã đánh giá và tất cả người có thể đánh giá (không tính Thầy/Cô) đã đánh giá đủ
     const evaluablePlayers = getEvaluablePlayers(room.players).filter(p => !p.name.startsWith('Thầy/Cô: '));

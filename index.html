@@ -539,6 +539,11 @@
             100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
         }
 
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         .host-name-permanent {
             position: fixed;
             top: 20px;
@@ -997,6 +1002,27 @@
             </div>
         </div>
 
+        <!-- Disconnected Screen -->
+        <div id="disconnectedScreen" class="screen" style="display: none;">
+            <div style="text-align: center; padding: 50px 20px;">
+                <div style="font-size: 80px; margin-bottom: 20px;">🔌</div>
+                <h1 style="color: #ef4444; margin-bottom: 20px;">Mất kết nối</h1>
+                <p style="color: #6b7280; font-size: 18px; margin-bottom: 30px;">
+                    Kết nối đến máy chủ đã bị ngắt. Đang thử kết nối lại...
+                </p>
+                <div id="reconnectStatus" style="margin-bottom: 30px;">
+                    <div style="display: inline-block; width: 20px; height: 20px; border: 3px solid #e5e7eb; border-top: 3px solid #3b82f6; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                    <span style="margin-left: 10px; color: #6b7280;">Đang kết nối lại...</span>
+                </div>
+                <button class="btn btn-primary" onclick="manualReconnect()" id="manualReconnectBtn" style="display: none;">
+                    🔄 Thử kết nối lại
+                </button>
+                <div style="margin-top: 20px;">
+                    <button class="btn" onclick="goToWelcome()">🏠 Về trang chủ</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Evaluation Setup Screen (Host only) -->
         <div id="evaluationSetupScreen" class="screen">
             <h1>⚙️ Cài đặt tiêu chí đánh giá</h1>
@@ -1097,6 +1123,13 @@
         let hasSubmitted = false; // Đã nộp bài chưa
         let currentPlayerScore = 0; // Điểm của người chơi hiện tại
         
+        // Disconnect handling
+        let isDisconnected = false;
+        let reconnectAttempts = 0;
+        let maxReconnectAttempts = 5;
+        let reconnectInterval = null;
+        let lastRoomData = null;
+        
         // Evaluation system
         let evaluationSetup = {
             hostCriteria: [],      // 5 tiêu chí của host
@@ -1111,10 +1144,21 @@
         // Connection events
         socket.on('connect', () => {
             updateConnectionStatus(true);
+            if (isDisconnected) {
+                handleReconnect();
+            }
         });
 
         socket.on('disconnect', () => {
             updateConnectionStatus(false);
+            handleDisconnect();
+        });
+
+        socket.on('connect_error', (error) => {
+            console.log('Connection error:', error);
+            if (!isDisconnected) {
+                handleDisconnect();
+            }
         });
 
         function updateConnectionStatus(connected) {
@@ -1130,6 +1174,133 @@
             } else {
                 status.textContent = connected ? '● Đã kết nối' : '● Mất kết nối';
             }
+        }
+
+        function handleDisconnect() {
+            if (isDisconnected) return;
+            
+            isDisconnected = true;
+            reconnectAttempts = 0;
+            
+            // Lưu thông tin phòng hiện tại
+            lastRoomData = {
+                roomCode: currentRoom,
+                playerName: currentPlayer,
+                isHost: isHost,
+                hostName: hostName
+            };
+            
+            // Hiển thị màn hình disconnect
+            showScreen('disconnectedScreen');
+            
+            // Bắt đầu thử kết nối lại
+            startReconnectAttempts();
+        }
+
+        function handleReconnect() {
+            if (!isDisconnected) return;
+            
+            isDisconnected = false;
+            reconnectAttempts = 0;
+            
+            // Ẩn màn hình disconnect
+            document.getElementById('disconnectedScreen').style.display = 'none';
+            
+            // Khôi phục kết nối phòng nếu có dữ liệu
+            if (lastRoomData) {
+                restoreRoomConnection();
+            }
+        }
+
+        function startReconnectAttempts() {
+            if (reconnectInterval) {
+                clearInterval(reconnectInterval);
+            }
+            
+            reconnectInterval = setInterval(() => {
+                if (reconnectAttempts >= maxReconnectAttempts) {
+                    clearInterval(reconnectInterval);
+                    showManualReconnectButton();
+                    return;
+                }
+                
+                reconnectAttempts++;
+                console.log(`Reconnect attempt ${reconnectAttempts}/${maxReconnectAttempts}`);
+                
+                // Socket.io sẽ tự động thử kết nối lại
+                if (socket.disconnected) {
+                    socket.connect();
+                }
+            }, 3000); // Thử mỗi 3 giây
+        }
+
+        function showManualReconnectButton() {
+            document.getElementById('reconnectStatus').innerHTML = `
+                <span style="color: #ef4444;">❌ Không thể kết nối tự động</span>
+            `;
+            document.getElementById('manualReconnectBtn').style.display = 'inline-block';
+        }
+
+        function manualReconnect() {
+            reconnectAttempts = 0;
+            document.getElementById('manualReconnectBtn').style.display = 'none';
+            document.getElementById('reconnectStatus').innerHTML = `
+                <div style="display: inline-block; width: 20px; height: 20px; border: 3px solid #e5e7eb; border-top: 3px solid #3b82f6; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <span style="margin-left: 10px; color: #6b7280;">Đang kết nối lại...</span>
+            `;
+            startReconnectAttempts();
+        }
+
+        function restoreRoomConnection() {
+            if (!lastRoomData) return;
+            
+            console.log('Restoring room connection:', lastRoomData);
+            
+            // Khôi phục thông tin phòng
+            currentRoom = lastRoomData.roomCode;
+            currentPlayer = lastRoomData.playerName;
+            isHost = lastRoomData.isHost;
+            hostName = lastRoomData.hostName;
+            
+            // Tham gia lại phòng
+            if (isHost) {
+                // Host tạo lại phòng
+                socket.emit('create-room', { hostName: hostName });
+            } else {
+                // Member tham gia lại phòng
+                const playerType = currentPlayer.startsWith('Nhóm') ? 'group' : 'teacher';
+                const groupNumber = playerType === 'group' ? 
+                    currentPlayer.match(/Nhóm (\d+):/)?.[1] || '1' : '1';
+                const playerName = currentPlayer.replace(/^(Nhóm \d+: |Thầy\/Cô: )/, '');
+                
+                socket.emit('join-room', {
+                    roomCode: currentRoom,
+                    playerType: playerType,
+                    playerName: playerName,
+                    groupNumber: groupNumber
+                });
+            }
+            
+            // Reset dữ liệu
+            lastRoomData = null;
+        }
+
+        function goToWelcome() {
+            // Reset tất cả dữ liệu
+            currentRoom = null;
+            currentPlayer = null;
+            isHost = false;
+            hostName = null;
+            lastRoomData = null;
+            isDisconnected = false;
+            reconnectAttempts = 0;
+            
+            if (reconnectInterval) {
+                clearInterval(reconnectInterval);
+                reconnectInterval = null;
+            }
+            
+            showScreen('welcomeScreen');
         }
 
         // Function hiển thị tên host
@@ -1900,6 +2071,58 @@
             }
         });
 
+        // Audio context cho âm thanh cảnh báo
+        let audioContext = null;
+
+        // Khởi tạo audio context khi người dùng tương tác lần đầu
+        function initAudioContext() {
+            if (!audioContext) {
+                try {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                } catch (error) {
+                    console.log('Không thể khởi tạo audio context:', error);
+                }
+            }
+            // Resume audio context nếu bị suspend (do chính sách trình duyệt)
+            if (audioContext && audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            return audioContext;
+        }
+
+        // Khởi tạo audio context khi người dùng click vào trang (yêu cầu của trình duyệt)
+        document.addEventListener('click', function initAudioOnClick() {
+            initAudioContext();
+            document.removeEventListener('click', initAudioOnClick);
+        }, { once: true });
+
+        // Phát âm thanh cảnh báo hết giờ
+        function playWarningSound() {
+            const ctx = initAudioContext();
+            if (!ctx) return;
+            
+            try {
+                const oscillator = ctx.createOscillator();
+                const gainNode = ctx.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(ctx.destination);
+                
+                // Tần số cao để tạo âm thanh cảnh báo
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+                
+                // Giảm âm lượng để không quá lớn
+                gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                
+                oscillator.start(ctx.currentTime);
+                oscillator.stop(ctx.currentTime + 0.3);
+            } catch (error) {
+                console.log('Không thể phát âm thanh:', error);
+            }
+        }
+
         function startTimer(seconds) {
             clearInterval(timerInterval);
             let timeLeft = seconds;
@@ -1912,8 +2135,10 @@
                 timeLeft--;
                 timerEl.textContent = timeLeft;
 
-                if (timeLeft <= 5) {
+                if (timeLeft <= 5 && timeLeft > 0) {
                     timerEl.classList.add('warning');
+                    // Phát âm thanh cảnh báo mỗi giây khi còn 5 giây
+                    playWarningSound();
                 }
 
                 if (timeLeft <= 0) {
@@ -2966,10 +3191,38 @@
             // Lưu evaluatedPlayers để sử dụng sau
             window.evaluatedPlayers = data.evaluatedPlayers;
             
-            if (!isHost) {
-                // Member nhận thông báo bắt đầu đánh giá
+            // Hiển thị theo phase do server chỉ định
+            if (data.phase === 'host' && isHost) {
+                renderHostEvaluationForm(window.evaluatedPlayers);
+                showScreen('hostEvaluationScreen');
+            } else if (data.phase === 'members' && !isHost && !currentPlayer?.startsWith('Thầy/Cô: ')) {
                 renderMemberEvaluationForm(data.evaluatedPlayers);
                 showScreen('memberEvaluationScreen');
+            }
+        });
+
+        // Phase chuyển tiếp: host -> members -> teachers
+        socket.on('evaluation-phase', (data) => {
+            const phase = data?.phase;
+            if (!phase) return;
+            if (phase === 'members') {
+                if (!isHost && !currentPlayer?.startsWith('Thầy/Cô: ')) {
+                    renderMemberEvaluationForm(window.evaluatedPlayers);
+                    showScreen('memberEvaluationScreen');
+                }
+                if (isHost) {
+                    showScreen('lobbyScreen');
+                }
+            }
+            if (phase === 'teachers') {
+                // Thầy/Cô sẽ dùng cùng form member (tiêu chí memberCriteria) theo design hiện tại
+                if (!isHost && currentPlayer?.startsWith('Thầy/Cô: ')) {
+                    renderMemberEvaluationForm(window.evaluatedPlayers);
+                    showScreen('memberEvaluationScreen');
+                } else if (!isHost) {
+                    // Các nhóm đã xong, quay lại phòng chờ
+                    showScreen('lobbyScreen');
+                }
             }
         });
 
