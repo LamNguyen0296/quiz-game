@@ -974,6 +974,7 @@
             <div id="hostControls" style="text-align: center; display: none;">
                 <button class="btn btn-success" onclick="startQuiz()" id="startQuizBtn">🚀 Bắt đầu Quiz</button>
                 <button class="btn" onclick="openQuizDetails()" id="quizDetailsBtn" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">📊 Xem chi tiết Quiz</button>
+                <button class="btn" onclick="openQuizBuilder()" id="editQuizBtn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">✏️ Sửa Quiz</button>
                 <button class="btn" onclick="openEvaluation()" id="evaluationBtn" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">⭐ Đánh giá</button>
                 <button class="btn" onclick="openEvaluationDetails()" id="evaluationDetailsBtn" style="background: linear-gradient(135deg, #36d1dc 0%, #5b86e5 100%);">📑 Xem chi tiết đánh giá</button>
                 <button class="btn" onclick="openResetGroupModal()" id="resetGroupBtn" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);">🗑️ Xóa điểm nhóm</button>
@@ -1080,6 +1081,21 @@
                 <div style="display: flex; gap: 10px; justify-content: flex-end;">
                     <button class="btn" onclick="closeResetGroupModal()">Hủy</button>
                     <button class="btn btn-danger" onclick="confirmResetGroup()" id="confirmResetBtn" disabled>Xác nhận xóa</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Average Detail Modal -->
+        <div id="avgDetailModal" class="modal" style="display:none;" onclick="if(event.target===this) closeAvgDetailModal();">
+            <div class="modal-content" style="max-width:520px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <h3 id="avgDetailTitle" style="margin:0;color:#111;font-size:18px;">Chi tiết điểm trung bình</h3>
+                    <button onclick="closeAvgDetailModal()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#666;">&times;</button>
+                </div>
+                <div id="avgDetailSummary" style="color:#374151;margin-bottom:8px;"></div>
+                <div id="avgDetailList" style="display:flex;flex-direction:column;gap:8px;max-height:360px;overflow:auto;"></div>
+                <div style="text-align:right;margin-top:12px;">
+                    <button class="btn" onclick="closeAvgDetailModal()">Đóng</button>
                 </div>
             </div>
         </div>
@@ -1263,11 +1279,20 @@
             
             isDisconnected = false;
             reconnectAttempts = 0;
+            if (reconnectInterval) {
+                clearInterval(reconnectInterval);
+                reconnectInterval = null;
+            }
             
             // Ẩn màn hình disconnect
             document.getElementById('disconnectedScreen').style.display = 'none';
             
             // Khôi phục kết nối phòng nếu có dữ liệu
+            try {
+                if (sessionStorage.getItem('restored_once') === '1') {
+                    return;
+                }
+            } catch {}
             if (lastRoomData) {
                 restoreRoomConnection();
             }
@@ -1289,7 +1314,7 @@
                 console.log(`Reconnect attempt ${reconnectAttempts}/${maxReconnectAttempts}`);
                 
                 // Socket.io sẽ tự động thử kết nối lại
-                if (socket.disconnected) {
+                if (socket && socket.disconnected) {
                     socket.connect();
                 }
             }, 3000); // Thử mỗi 3 giây
@@ -1315,7 +1340,11 @@
         function restoreRoomConnection() {
             if (!lastRoomData) return;
             
+            if (window.__restoreInProgress) return;
+            window.__restoreInProgress = true;
             console.log('Restoring room connection:', lastRoomData);
+            isRestoringSession = true;
+            try { sessionStorage.setItem('restored_once', '1'); } catch {}
             
             // Khôi phục thông tin phòng
             currentRoom = lastRoomData.roomCode;
@@ -1324,9 +1353,12 @@
             hostName = lastRoomData.hostName;
             
             // Tham gia lại phòng
+            // Ngăn gọi lặp bằng cách xóa dữ liệu ngay trước khi emit
+            const payload = lastRoomData;
+            lastRoomData = null;
             if (isHost) {
-                // Host tạo lại phòng
-                socket.emit('create-room', { hostName: hostName });
+                // Host tạo lại phòng (loadExisting để giữ quiz)
+                socket.emit('create-room', { playerName: hostName, loadExisting: true });
             } else {
                 // Member tham gia lại phòng
                 const playerType = currentPlayer.startsWith('Nhóm') ? 'group' : 'teacher';
@@ -1334,16 +1366,11 @@
                     currentPlayer.match(/Nhóm (\d+):/)?.[1] || '1' : '1';
                 const playerName = currentPlayer.replace(/^(Nhóm \d+: |Thầy\/Cô: )/, '');
                 
-                socket.emit('join-room', {
-                    roomCode: currentRoom,
-                    playerType: playerType,
-                    playerName: playerName,
-                    groupNumber: groupNumber
-                });
+                socket.emit('join-room', { roomCode: currentRoom, playerType, playerName, groupNumber });
             }
             
-            // Reset dữ liệu
-            lastRoomData = null;
+            // Reset cờ sau thời gian ngắn (phòng khi không nhận được event)
+            setTimeout(() => { window.__restoreInProgress = false; }, 2000);
         }
 
         function goToWelcome() {
@@ -1391,6 +1418,110 @@
         }
 
         // Room functions
+        // Utilities for URL/session persistence
+        let isRestoringSession = false;
+        function slugifyName(name) {
+            try {
+                return name
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, '-')
+                    .replace(/^-+|-+$/g, '');
+            } catch (e) {
+                return (name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+            }
+        }
+
+        function updateURLForSession(role, groupNumber, teacherName) {
+            let path = '/';
+            if (role === 'host') path = '/root';
+            else if (role === 'group' && groupNumber) path = `/nhom${groupNumber}`;
+            else if (role === 'teacher' && teacherName) path = `/${slugifyName(teacherName)}`;
+            const newUrl = `${location.origin}${path}`;
+            if (location.href !== newUrl) history.replaceState({}, '', newUrl);
+        }
+
+        function saveSession(role, roomCode, playerName, groupNumber) {
+            try {
+                localStorage.setItem('session_role', role || '');
+                localStorage.setItem('session_room', roomCode || '');
+                localStorage.setItem('session_name', playerName || '');
+                localStorage.setItem('session_group', groupNumber ? String(groupNumber) : '');
+                if (role === 'host') localStorage.setItem('hostName', playerName || '');
+                if (role === 'group' && groupNumber) localStorage.setItem(`groupName_nhom${groupNumber}`, playerName || '');
+                if (role === 'teacher') localStorage.setItem(`teacherName_${slugifyName(playerName || '')}`, playerName || '');
+            } catch {}
+        }
+
+        async function autoJoinFromURL() {
+            if (isRestoringSession) return;
+            const path = (location.pathname || '/').toLowerCase();
+            if (path === '/root') {
+                const storedName = localStorage.getItem('hostName');
+                if (storedName && !isHost && !currentRoom) {
+                    document.getElementById('hostName').value = storedName;
+                    await createRoom();
+                }
+                return;
+            }
+            const nhomMatch = path.match(/^\/nhom([1-4])$/);
+            if (nhomMatch) {
+                const groupNumber = parseInt(nhomMatch[1]);
+                const groupName = localStorage.getItem(`groupName_nhom${groupNumber}`) || '';
+                const roomCode = localStorage.getItem('session_room') || document.getElementById('roomCodeInput').value || 'QUIZ12';
+                if (groupName) {
+                    currentPlayer = groupName;
+                    socket.emit('join-room', { roomCode, playerType: 'group', playerName: groupName, groupNumber });
+                } else {
+                    // Prefill UI
+                    document.getElementById('roomCodeInput').value = roomCode;
+                    document.querySelector('input[name="playerType"][value="group"]').checked = true;
+                    document.getElementById('groupNumber').value = String(groupNumber);
+                    showScreen('welcomeScreen');
+                }
+                return;
+            }
+            // Teacher slug
+            if (path.length > 1) {
+                const slug = path.slice(1);
+                const teacherName = localStorage.getItem(`teacherName_${slug}`) || slug.replace(/-/g, ' ');
+                const roomCode = localStorage.getItem('session_room') || document.getElementById('roomCodeInput').value || 'QUIZ12';
+                if (teacherName) {
+                    currentPlayer = teacherName;
+                    socket.emit('join-room', { roomCode, playerType: 'teacher', playerName: teacherName, groupNumber: null });
+                }
+            }
+        }
+
+        // Auto join using saved session even without special URL paths
+        function autoJoinFromSession() {
+            const pathNow = (location.pathname || '/').toLowerCase();
+            if (isRestoringSession) return;
+            try {
+                const role = localStorage.getItem('session_role');
+                const roomCode = localStorage.getItem('session_room');
+                const name = localStorage.getItem('session_name');
+                const group = parseInt(localStorage.getItem('session_group') || '');
+                if (!roomCode || !name || !role) return;
+
+                // Không auto-join ở path '/'; chỉ auto tại '/root' hoặc path đặc biệt đã xử lý
+                if (pathNow === '/') return;
+
+                if (role === 'host') {
+                    if (!isHost && !currentRoom) {
+                        document.getElementById('hostName').value = name;
+                        createRoom();
+                    }
+                } else if (role === 'group' && group >= 1 && group <= 4) {
+                    currentPlayer = name;
+                    socket.emit('join-room', { roomCode, playerType: 'group', playerName: name, groupNumber: group });
+                } else if (role === 'teacher') {
+                    currentPlayer = name;
+                    socket.emit('join-room', { roomCode, playerType: 'teacher', playerName: name, groupNumber: null });
+                }
+            } catch {}
+        }
         async function createRoom() {
             const name = document.getElementById('hostName').value.trim();
             if (!name) {
@@ -1481,6 +1612,10 @@
                 playerName: playerName,
                 groupNumber: groupNumber ? parseInt(groupNumber) : null
             });
+            // Persist URL and session for reload
+            const role = playerType.value === 'group' ? 'group' : 'teacher';
+            updateURLForSession(role, groupNumber ? parseInt(groupNumber) : null, role === 'teacher' ? playerName : null);
+            saveSession(role, code, playerName, groupNumber ? parseInt(groupNumber) : null);
         }
 
         function handleAction() {
@@ -1509,42 +1644,28 @@
         socket.on('room-created', async (data) => {
             currentRoom = data.roomCode;
             isHost = true;
-            showHostName(currentPlayer); // Hiển thị tên host
-            document.getElementById('displayRoomCode').textContent = currentRoom;
-            showScreen('createQuizScreen');
+            isRestoringSession = false;
+            try { sessionStorage.setItem('restored_once', '1'); } catch {}
+            showHostName(currentPlayer);
+            // Update URL và lưu session
+            updateURLForSession('host');
+            saveSession('host', currentRoom, currentPlayer, null);
             
-            // Load existing quiz nếu có
-            if (data.loadExisting) {
-                try {
-                    const response = await fetch('/api/check-quiz', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ hostName: currentPlayer })
-                    });
-                    
-                    const result = await response.json();
-                    
-                    if (result.exists && result.quiz && result.quiz.questions) {
-                        questions = result.quiz.questions;
-                        renderQuestions();
-                        alert(`✅ Đã load quiz với ${questions.length} câu hỏi!\nBạn có thể sửa và lưu lại.`);
-                    } else {
-                        addQuestion(); // Nếu không load được thì tạo mới
-                    }
-                } catch (error) {
-                    console.error('Error loading quiz:', error);
-                    addQuestion();
-                }
-            } else {
-                // Tạo mới
-                questions = [];
-                addQuestion(); // Add first question
-            }
+            // Cập nhật thông tin lobby
+            document.getElementById('lobbyRoomCode').textContent = currentRoom;
+            document.getElementById('lobbyHostName').textContent = currentPlayer;
+            document.getElementById('hostControls').style.display = 'block';
+            
+            // Không tự mở trình sửa quiz nữa. Host có thể bấm "✏️ Sửa Quiz" trong phòng chờ khi cần.
+            showScreen('lobbyScreen');
+            socket.emit('get-players');
         });
 
         socket.on('room-joined', (data) => {
             currentRoom = data.roomCode;
             isHost = data.isHost;
+            isRestoringSession = false;
+            try { sessionStorage.setItem('restored_once', '1'); } catch {}
             
             // Tìm và hiển thị tên host
             const host = data.players.find(p => p.isHost);
@@ -1576,6 +1697,24 @@
             
             if (isHost) {
                 document.getElementById('hostControls').style.display = 'block';
+            }
+
+            // Determine role and update URL/session
+            const me = data.players.find(p => p.id === socket.id);
+            if (me) {
+                if (me.isHost) {
+                    updateURLForSession('host');
+                    saveSession('host', currentRoom, me.name, null);
+                } else if (me.name && me.name.startsWith('Nhóm ')) {
+                    const match = me.name.match(/^Nhóm\s+(\d+)/);
+                    const gnum = match ? parseInt(match[1]) : null;
+                    updateURLForSession('group', gnum, null);
+                    saveSession('group', currentRoom, currentPlayer, gnum);
+                } else if (me.name && me.name.startsWith('Thầy/Cô: ')) {
+                    const tname = me.name.replace('Thầy/Cô: ', '').trim();
+                    updateURLForSession('teacher', null, tname);
+                    saveSession('teacher', currentRoom, tname, null);
+                }
             }
         });
 
@@ -1649,15 +1788,20 @@
                     currentPlayerScore = score;
                 }
                 
+                // Ẩn điểm của thầy/cô
+                const isTeacher = p.name && p.name.startsWith('Thầy/Cô: ');
+                const scoreDisplay = isTeacher ? '' : `<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 10px 20px; border-radius: 16px; font-weight: 700; font-size: 1.3rem; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); min-width: 100px; text-align: center;">
+                            🏆 ${score}
+                        </div>`;
+                const editButtonForTeacher = isTeacher ? '' : editButton;
+                
                 list.innerHTML += `<div style="background: ${isCurrentPlayer ? '#fffef0' : '#f8f9fa'}; padding: 12px 18px; margin-bottom: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; ${highlightBorder}">
                     <span style="font-weight: 600; font-size: 1.1rem; color: #333;">
                         ${isCurrentPlayer ? '👤 ' : ''}${p.name}
                     </span>
                     <div style="display: flex; align-items: center;">
-                        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 10px 20px; border-radius: 16px; font-weight: 700; font-size: 1.3rem; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); min-width: 100px; text-align: center;">
-                            🏆 ${score}
-                        </div>
-                        ${editButton}
+                        ${scoreDisplay}
+                        ${editButtonForTeacher}
                     </div>
                 </div>`;
             });
@@ -1902,6 +2046,25 @@
             }
 
             socket.emit('create-quiz', { questions });
+        }
+
+        async function openQuizBuilder() {
+            if (!isHost) return;
+            try {
+                const response = await fetch('/api/check-quiz', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ hostName: currentPlayer })
+                });
+                const data = await response.json();
+                if (data && data.quiz && Array.isArray(data.quiz.questions)) {
+                    questions = data.quiz.questions;
+                }
+            } catch (e) {
+                console.log('⚠️ Không load được quiz, dùng bộ nhớ hiện tại');
+            }
+            renderQuestions();
+            showScreen('createQuizScreen');
         }
 
         socket.on('quiz-created', (data) => {
@@ -2317,13 +2480,15 @@
                     const teacherScore = r.teacherScore || 0;
                     const totalScore = r.totalScore || r.score || 0;
                     
+                    const peerDetails = (r.details && r.details.peerEvaluationsDetails) || [];
+                    const teacherDetails = (r.details && r.details.teacherEvaluationsDetails) || [];
                     scoreDetails = `
                         <div style="margin-top:10px;font-size:24px;font-weight:900;color:#111;">${totalScore.toFixed(1)} điểm</div>
-                        <div style="margin-top:8px;font-size:12px;color:#666;line-height:1.4;">
+                        <div style="margin-top:8px;font-size:12px;color:#666;line-height:1.6;">
                             <div>📝 Quiz: ${quizScore.toFixed(1)}</div>
                             <div>👑 Chủ phòng: ${hostScore.toFixed(1)}</div>
-                            <div>👥 Nhóm: ${peerScore.toFixed(1)}</div>
-                            <div>👨‍🏫 Thầy cô: ${teacherScore.toFixed(1)}</div>
+                            <div style="cursor: pointer; text-decoration: underline;" onclick='showAverageDetails("Điểm trung bình các nhóm", ${JSON.stringify(peerDetails)}, ${peerScore.toFixed(2)})'>👥 Nhóm: ${peerScore.toFixed(1)}</div>
+                            <div style="cursor: pointer; text-decoration: underline;" onclick='showAverageDetails("Điểm trung bình thầy/cô", ${JSON.stringify(teacherDetails)}, ${teacherScore.toFixed(2)})'>👨‍🏫 Thầy cô: ${teacherScore.toFixed(1)}</div>
                         </div>
                     `;
                 } else {
@@ -2400,6 +2565,36 @@
                 });
                 select.setAttribute('data-listener-added', 'true');
             }
+        }
+
+        function showAverageDetails(title, details, average) {
+            try {
+                const modal = document.getElementById('avgDetailModal');
+                const titleEl = document.getElementById('avgDetailTitle');
+                const listEl = document.getElementById('avgDetailList');
+                const sumEl = document.getElementById('avgDetailSummary');
+                titleEl.textContent = title;
+                const items = Array.isArray(details) ? details : [];
+                sumEl.innerHTML = `Trung bình: <strong>${(Number(average)||0).toFixed(2)} điểm</strong>`;
+                listEl.innerHTML = items.length ? items.map((it, idx) => {
+                    const name = (it && it.name) ? it.name : `#${idx+1}`;
+                    const score = (it && typeof it.score === 'number') ? it.score : 0;
+                    return `<div style="display:flex;justify-content:space-between;align-items:center;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;">
+                        <div style="color:#111;font-weight:600;">${name}</div>
+                        <div style="color:#111;font-weight:800;">${score.toFixed(2)} đ</div>
+                    </div>`;
+                }).join('') : '<div style="color:#6b7280;">Chưa có dữ liệu chi tiết.</div>';
+                modal.style.display = 'flex';
+                modal.classList.add('active');
+            } catch (e) {
+                console.log('showAverageDetails error', e);
+            }
+        }
+
+        function closeAvgDetailModal() {
+            const modal = document.getElementById('avgDetailModal');
+            modal.style.display = 'none';
+            modal.classList.remove('active');
         }
 
         // Đóng modal xóa điểm nhóm
@@ -2886,6 +3081,28 @@
             joinRoomType.addEventListener('change', updateActionSelection);
             groupType.addEventListener('change', updatePlayerTypeSelection);
             teacherType.addEventListener('change', updatePlayerTypeSelection);
+
+            // Prefill from stored session
+            try {
+                const savedRoom = localStorage.getItem('session_room');
+                if (savedRoom) document.getElementById('roomCodeInput').value = savedRoom;
+                const savedHost = localStorage.getItem('hostName');
+                if (savedHost) document.getElementById('hostName').value = savedHost;
+            } catch {}
+
+            // Attempt auto-join/create based on URL path, then fallback to saved session (host only on /)
+            setTimeout(() => {
+                autoJoinFromURL();
+                // Fallback after a short delay if chưa vào phòng: chỉ chạy khi đang ở /root
+                setTimeout(() => {
+                    if (!currentRoom) {
+                        const pathNow = (location.pathname || '/').toLowerCase();
+                        if (pathNow === '/root') {
+                            autoJoinFromSession();
+                        }
+                    }
+                }, 200);
+            }, 0);
         });
 
         // ============ EVALUATION SYSTEM ============

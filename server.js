@@ -146,7 +146,7 @@ function saveScoresToFile(hostName, roomCode, players) {
 }
 
 // Lưu logs đánh giá
-function saveEvaluationLogs(hostName, roomCode, evaluations) {
+function saveEvaluationLogs(hostName, roomCode, evaluations, evaluationSetup, players) {
     try {
         const filePath = getEvaluationLogsFilePath(hostName);
 
@@ -156,7 +156,8 @@ function saveEvaluationLogs(hostName, roomCode, evaluations) {
             roomCode: roomCode,
             evaluations: { host: {}, members: {}, teachers: {} },
             savedAt: new Date().toISOString(),
-            lastUpdated: new Date().toISOString()
+            lastUpdated: new Date().toISOString(),
+            summaryTable: []
         };
 
         let existing = null;
@@ -209,6 +210,65 @@ function saveEvaluationLogs(hostName, roomCode, evaluations) {
                     };
                 });
             });
+        }
+
+        // Xây bảng tóm tắt giống hình (Host, TB Thầy/Cô, TB Nhóm còn lại, Tổng)
+        try {
+            if (evaluationSetup && players && merged.evaluations) {
+                const members = players.filter(p => !p.isHost && !(p.name && p.name.startsWith('Thầy/Cô: ')));
+                const table = members.map(member => {
+                    const memberId = member.id || member.playerId || member.memberId;
+                    // Host score
+                    let hostScore = 0;
+                    const hostEval = merged.evaluations.host?.[memberId] || {};
+                    Object.keys(hostEval).forEach(cid => {
+                        const c = evaluationSetup.hostCriteria?.find(x => x.id == cid);
+                        if (c) hostScore += (c.maxScore / 4) * hostEval[cid];
+                    });
+                    // Peer average
+                    let peerScores = [];
+                    Object.keys(merged.evaluations.members || {}).forEach(evaluatorId => {
+                        if (evaluatorId === memberId || evaluatorId?.startsWith('default-member-')) return;
+                        const evaluator = players.find(p => p.id === evaluatorId);
+                        if (evaluator && evaluator.name && evaluator.name.startsWith('Thầy/Cô: ')) return;
+                        const rating = merged.evaluations.members?.[evaluatorId]?.[memberId];
+                        if (rating) {
+                            let s = 0;
+                            Object.keys(rating).forEach(cid => {
+                                const c = evaluationSetup.memberCriteria?.find(x => x.id == cid);
+                                if (c) s += (c.maxScore / 4) * rating[cid];
+                            });
+                            peerScores.push(s);
+                        }
+                    });
+                    const peerAvg = peerScores.length ? peerScores.reduce((a,b)=>a+b,0)/peerScores.length : 0;
+                    // Teacher average
+                    let teacherScores = [];
+                    Object.keys(merged.evaluations.teachers || {}).forEach(teacherId => {
+                        const rating = merged.evaluations.teachers?.[teacherId]?.[memberId];
+                        if (rating) {
+                            let s = 0;
+                            Object.keys(rating).forEach(cid => {
+                                const c = evaluationSetup.memberCriteria?.find(x => x.id == cid);
+                                if (c) s += (c.maxScore / 4) * rating[cid];
+                            });
+                            teacherScores.push(s);
+                        }
+                    });
+                    const teacherAvg = teacherScores.length ? teacherScores.reduce((a,b)=>a+b,0)/teacherScores.length : 0;
+                    const total = hostScore + peerAvg + teacherAvg;
+                    return {
+                        name: member.name,
+                        hostScore: Number(hostScore.toFixed(2)),
+                        teacherAverage: Number(teacherAvg.toFixed(2)),
+                        peerAverage: Number(peerAvg.toFixed(2)),
+                        total: Number(total.toFixed(2))
+                    };
+                });
+                merged.summaryTable = table;
+            }
+        } catch (e) {
+            console.error('⚠️ Build summaryTable failed:', e.message);
         }
 
         merged.roomCode = roomCode; // cập nhật mã phòng hiện tại
@@ -619,6 +679,27 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
     }
 });
 
+// -------- SPA ROUTE FALLBACK (serve index.html for client-side routes) --------
+const knownPrefixes = ['/api', '/socket.io', '/uploads', '/quizzes', '/evaluation-details', '/quiz-details'];
+app.get(['/root', '/nhom1', '/nhom2', '/nhom3', '/nhom4'], (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+app.get('*', (req, res, next) => {
+    try {
+        const pathName = req.path || '';
+        // Skip API and known prefixes
+        if (knownPrefixes.some(p => pathName.startsWith(p))) return next();
+        // If client requests HTML, serve SPA entry
+        const accepts = req.headers['accept'] || '';
+        if (accepts.includes('text/html')) {
+            return res.sendFile(path.join(__dirname, 'index.html'));
+        }
+        next();
+    } catch (e) {
+        next();
+    }
+});
+
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
@@ -628,6 +709,27 @@ io.on('connection', (socket) => {
         const playerName = data.playerName || 'Player';
         const loadExisting = data.loadExisting || false;
         
+        // Nếu phòng đã tồn tại và cùng chủ phòng, xử lý như rejoin thay vì tạo mới
+        if (rooms.has(roomCode)) {
+            const room = rooms.get(roomCode);
+            const existingHost = room.players.find(p => p.isHost);
+            if (existingHost && existingHost.name === playerName) {
+                // Cập nhật host id
+                room.host = socket.id;
+                existingHost.id = socket.id;
+                socket.join(roomCode);
+                socket.roomCode = roomCode;
+                console.log(`🔄 Host rejoined room ${roomCode} as ${playerName}`);
+                socket.emit('room-joined', {
+                    roomCode: roomCode,
+                    players: getVisiblePlayers(room.players),
+                    isHost: true,
+                    savedScore: 0
+                });
+                return;
+            }
+        }
+
         // Tạo phòng mới với 4 member mặc định
         rooms.set(roomCode, {
             host: socket.id,
@@ -802,14 +904,18 @@ io.on('connection', (socket) => {
                 }
             }
         } else {
-            // Kiểm tra số lượng người chơi thực tế (không tính host và member mặc định, tối đa 4 người thực)
-            const realPlayerCount = room.players.filter(p => !p.isHost && !p.id.startsWith('default-member-')).length;
-            if (realPlayerCount >= 4) {
-                socket.emit('join-error', { message: 'Phòng đã đầy! (Tối đa 4 người chơi thực)' });
-                return;
+            // Nếu là Thầy/Cô thì bỏ qua kiểm tra giới hạn nhóm
+            const isTeacher = formattedPlayerName.startsWith('Thầy/Cô: ');
+            if (!isTeacher) {
+                // Kiểm tra số lượng NHÓM thực tế (không tính host, không tính member mặc định, KHÔNG tính Thầy/Cô) tối đa 4 nhóm
+                const realGroupCount = room.players.filter(p => !p.isHost && !p.id.startsWith('default-member-') && !(p.name && p.name.startsWith('Thầy/Cô: '))).length;
+                if (realGroupCount >= 4) {
+                    socket.emit('join-error', { message: 'Phòng đã đầy! (Tối đa 4 người chơi thực)' });
+                    return;
+                }
             }
 
-            // Thêm người chơi mới vào phòng
+            // Thêm người chơi mới vào phòng (bao gồm Thầy/Cô)
             room.players.push({
                 id: socket.id,
                 name: formattedPlayerName,
@@ -878,16 +984,12 @@ io.on('connection', (socket) => {
                 return;
             }
 
+            // Cập nhật quiz mà không ảnh hưởng đến trạng thái người chơi/điểm số
             room.quiz = {
                 questions: data.questions,
                 createdAt: new Date()
             };
-            room.quizActive = false;
-            room.currentQuestion = 0;
-            room.answers = new Map();
-
-            // Reset scores
-            room.players.forEach(p => p.score = 0);
+            // Không reset quizActive/currentQuestion/answers/điểm để tránh làm các nhóm bị thoát hoặc mất trạng thái
 
             // Lưu quiz vào file theo tên host
             const hostPlayer = room.players.find(p => p.isHost);
@@ -1592,7 +1694,15 @@ io.on('connection', (socket) => {
                 return;
             }
             
-            room.evaluations.host = evaluations;
+            // Gộp dồn đánh giá host thay vì ghi đè
+            if (!room.evaluations) room.evaluations = { host: {}, members: {}, teachers: {} };
+            if (!room.evaluations.host) room.evaluations.host = {};
+            Object.keys(evaluations || {}).forEach(memberId => {
+                room.evaluations.host[memberId] = {
+                    ...(room.evaluations.host[memberId] || {}),
+                    ...evaluations[memberId]
+                };
+            });
             
             console.log('📊 Host evaluation received:', evaluationScores);
             
@@ -1649,7 +1759,7 @@ io.on('connection', (socket) => {
             if (hostPlayer) {
                 saveScoresToFile(hostPlayer.name, roomCode, room.players);
                 // Lưu logs đánh giá
-                saveEvaluationLogs(hostPlayer.name, roomCode, room.evaluations);
+                saveEvaluationLogs(hostPlayer.name, roomCode, room.evaluations, room.evaluationSetup, room.players);
                 console.log(`💾 Scores saved to file for ${hostPlayer.name}`);
             }
             
@@ -1816,7 +1926,7 @@ io.on('connection', (socket) => {
                 const hostPlayer = room.players.find(p => p.isHost);
                 if (hostPlayer) {
                     saveScoresToFile(hostPlayer.name, roomCode, room.players);
-                    saveEvaluationLogs(hostPlayer.name, roomCode, room.evaluations);
+                    saveEvaluationLogs(hostPlayer.name, roomCode, room.evaluations, room.evaluationSetup, room.players);
                     console.log(`💾 Scores with teacher evaluation saved to file for ${hostPlayer.name}`);
                 }
             } else {
@@ -1848,7 +1958,7 @@ io.on('connection', (socket) => {
                 const hostPlayer = room.players.find(p => p.isHost);
                 if (hostPlayer) {
                     saveScoresToFile(hostPlayer.name, roomCode, room.players);
-                    saveEvaluationLogs(hostPlayer.name, roomCode, room.evaluations);
+                    saveEvaluationLogs(hostPlayer.name, roomCode, room.evaluations, room.evaluationSetup, room.players);
                     console.log(`💾 Scores with member evaluation saved to file for ${hostPlayer.name}`);
                 }
             }
@@ -2354,6 +2464,7 @@ function calculateEvaluationResults(room) {
         
         // 3. Điểm từ peers (các nhóm đánh giá nhau)
         let peerScores = [];
+        let peerDetails = [];
         Object.keys(evaluations.members).forEach(evaluatorId => {
             // Bỏ qua nếu người đánh giá chính là người được đánh giá hoặc là member mặc định
             if (evaluatorId === member.id || evaluatorId.startsWith('default-member-')) {
@@ -2378,6 +2489,8 @@ function calculateEvaluationResults(room) {
                     }
                 });
                 peerScores.push(peerScore);
+                const evaluatorName = evaluator ? evaluator.name : evaluatorId;
+                peerDetails.push({ name: evaluatorName, score: peerScore });
             }
         });
         
@@ -2387,6 +2500,7 @@ function calculateEvaluationResults(room) {
         
         // 4. Điểm từ teachers (trung bình của các thầy cô)
         let teacherScores = [];
+        let teacherDetails = [];
         Object.keys(evaluations.teachers || {}).forEach(teacherId => {
             const teacherEval = evaluations.teachers[teacherId];
             const teacherRating = teacherEval[member.id];
@@ -2400,6 +2514,8 @@ function calculateEvaluationResults(room) {
                     }
                 });
                 teacherScores.push(teacherScore);
+                const teacherName = (players.find(p => p.id === teacherId)?.name) || teacherId;
+                teacherDetails.push({ name: teacherName, score: teacherScore });
             }
         });
         
@@ -2420,7 +2536,9 @@ function calculateEvaluationResults(room) {
             details: {
                 hostEvaluation: hostEval,
                 peerEvaluations: peerScores,
-                teacherEvaluations: teacherScores
+                teacherEvaluations: teacherScores,
+                peerEvaluationsDetails: peerDetails,
+                teacherEvaluationsDetails: teacherDetails
             }
         };
     });

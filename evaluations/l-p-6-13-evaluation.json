@@ -1,0 +1,48 @@
+{
+  "results": {
+    "BJi70JtbYXw1BLptAAAR": {
+      "name": "Nhóm 1: a",
+      "quizScore": 0,
+      "hostScore": 40,
+      "peerScore": 40,
+      "teacherScore": 0,
+      "totalScore": 80,
+      "details": {
+        "hostEvaluation": {
+          "1": 4,
+          "2": 4,
+          "3": 4,
+          "4": 4,
+          "5": 4
+        },
+        "peerEvaluations": [
+          40
+        ],
+        "teacherEvaluations": []
+      }
+    },
+    "PMSPVpbEndaUoHFbAAAT": {
+      "name": "Nhóm 2: b",
+      "quizScore": 0,
+      "hostScore": 30,
+      "peerScore": 40,
+      "teacherScore": 0,
+      "totalScore": 70,
+      "details": {
+        "hostEvaluation": {
+          "1": 3,
+          "2": 3,
+          "3": 3,
+          "4": 3,
+          "5": 3
+        },
+        "peerEvaluations": [
+          40
+        ],
+        "teacherEvaluations": []
+      }
+    }
+  },
+  "roomCode": "QUIZ12",
+  "completedAt": "2025-10-31T15:29:17.098Z"
+}

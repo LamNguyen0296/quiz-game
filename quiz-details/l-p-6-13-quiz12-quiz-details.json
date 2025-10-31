@@ -1,12 +1,12 @@
 {
   "hostName": "Lớp 6/13",
   "roomCode": "QUIZ12",
-  "timestamp": "2025-10-29T07:54:24.492Z",
+  "timestamp": "2025-10-31T15:20:20.650Z",
   "quiz": {
     "questions": [
       {
         "questionNumber": 1,
-        "question": "a",
+        "question": "abcdttygg ?",
         "options": [
           "a",
           "a",
@@ -23,14 +23,14 @@
   "results": [
     {
       "playerName": "Nhóm 1: a",
-      "playerId": "xVw3RGHkBVcfHhT0AAAL",
+      "playerId": "xP4MsNnf1IUtdxcAAAAH",
       "totalQuestions": 1,
       "correctAnswers": 0,
       "score": 0,
       "details": [
         {
           "questionNumber": 1,
-          "question": "a",
+          "question": "abcdttygg ?",
           "options": [
             "a",
             "a",
@@ -41,6 +41,78 @@
           "playerAnswer": 1,
           "isCorrect": false,
           "answered": true,
+          "pointsEarned": 0
+        }
+      ]
+    },
+    {
+      "playerName": "Nhóm 2: b",
+      "playerId": "Wu4bAVXNA86QUnIDAAAJ",
+      "totalQuestions": 1,
+      "correctAnswers": 0,
+      "score": 0,
+      "details": [
+        {
+          "questionNumber": 1,
+          "question": "abcdttygg ?",
+          "options": [
+            "a",
+            "a",
+            "a",
+            "a"
+          ],
+          "correctAnswer": 0,
+          "playerAnswer": 3,
+          "isCorrect": false,
+          "answered": true,
+          "pointsEarned": 0
+        }
+      ]
+    },
+    {
+      "playerName": "Nhóm 3: c",
+      "playerId": "3S_6LgD0phqercYAAAAR",
+      "totalQuestions": 1,
+      "correctAnswers": 0,
+      "score": 0,
+      "details": [
+        {
+          "questionNumber": 1,
+          "question": "abcdttygg ?",
+          "options": [
+            "a",
+            "a",
+            "a",
+            "a"
+          ],
+          "correctAnswer": 0,
+          "playerAnswer": null,
+          "isCorrect": false,
+          "answered": false,
+          "pointsEarned": 0
+        }
+      ]
+    },
+    {
+      "playerName": "Nhóm 4: d",
+      "playerId": "x8G_RXfUhwUbYo4mAAAT",
+      "totalQuestions": 1,
+      "correctAnswers": 0,
+      "score": 0,
+      "details": [
+        {
+          "questionNumber": 1,
+          "question": "abcdttygg ?",
+          "options": [
+            "a",
+            "a",
+            "a",
+            "a"
+          ],
+          "correctAnswer": 0,
+          "playerAnswer": null,
+          "isCorrect": false,
+          "answered": false,
           "pointsEarned": 0
         }
       ]

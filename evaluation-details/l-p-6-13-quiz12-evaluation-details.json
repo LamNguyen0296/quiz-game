@@ -1,114 +1,100 @@
 {
   "hostName": "Lớp 6/13",
   "roomCode": "QUIZ12",
-  "timestamp": "2025-10-29T06:32:03.034Z",
+  "timestamp": "2025-10-31T15:29:17.109Z",
   "evaluationSetup": {
     "hostCriteria": [
       {
         "id": 1,
         "name": "Ý tưởng & sáng tạo",
         "weight": 20,
-        "maxScore": 8,
-        "description": "Đánh giá tính sáng tạo và độc đáo của ý tưởng"
+        "maxScore": 8
       },
       {
         "id": 2,
         "name": "Kiến thức về Ai Cập cổ đại",
         "weight": 25,
-        "maxScore": 10,
-        "description": "Đánh giá mức độ hiểu biết về chủ đề"
+        "maxScore": 10
       },
       {
         "id": 3,
         "name": "Ứng dụng STEM",
         "weight": 25,
-        "maxScore": 10,
-        "description": "Đánh giá khả năng ứng dụng khoa học - kỹ thuật - toán"
+        "maxScore": 10
       },
       {
         "id": 4,
         "name": "Hình thức & sản phẩm",
         "weight": 15,
-        "maxScore": 6,
-        "description": "Đánh giá chất lượng và tính thẩm mỹ của sản phẩm"
+        "maxScore": 6
       },
       {
         "id": 5,
         "name": "Làm việc nhóm & thuyết trình",
         "weight": 15,
-        "maxScore": 6,
-        "description": "Đánh giá khả năng hợp tác và trình bày"
+        "maxScore": 6
       }
     ],
     "memberCriteria": [
       {
         "id": 1,
-        "name": "Ý tưởng sản phẩm",
+        "name": "Hỗ trợ đồng đội",
         "weight": 25,
-        "maxScore": 4,
-        "description": "Đánh giá mức độ hỗ trợ và giúp đỡ đồng đội"
+        "maxScore": 10
       },
       {
         "id": 2,
-        "name": "Hiểu biết về Ai Cập",
+        "name": "Chia sẻ kiến thức",
         "weight": 25,
-        "maxScore": 8,
-        "description": "Đánh giá việc chia sẻ kiến thức và kinh nghiệm"
+        "maxScore": 10
       },
       {
         "id": 3,
-        "name": "Làm việc nhóm",
+        "name": "Thái độ làm việc",
         "weight": 25,
-        "maxScore": 2,
-        "description": "Đánh giá thái độ tích cực và chuyên nghiệp"
+        "maxScore": 10
       },
       {
         "id": 4,
-        "name": "Sản phẩm & thuyết trình",
+        "name": "Đóng góp ý kiến",
         "weight": 25,
-        "maxScore": 6,
-        "description": "Đánh giá mức độ đóng góp ý kiến xây dựng"
+        "maxScore": 10
       }
     ],
     "ratingLevels": [
       {
         "id": 4,
         "name": "Xuất sắc",
-        "description": "Hoàn thành xuất sắc, vượt mong đợi",
         "emoji": "😍"
       },
       {
         "id": 3,
         "name": "Tốt",
-        "description": "Hoàn thành tốt, đáp ứng yêu cầu",
         "emoji": "😊"
       },
       {
         "id": 2,
         "name": "Đạt",
-        "description": "Hoàn thành cơ bản, đạt yêu cầu tối thiểu",
         "emoji": "😐"
       },
       {
         "id": 1,
         "name": "Cần cố gắng",
-        "description": "Chưa đạt yêu cầu, cần cải thiện",
         "emoji": "😔"
       }
     ]
   },
   "memberDetails": [
     {
-      "memberId": "cyXLp4WOthX43u_qAAAH",
+      "memberId": "BJi70JtbYXw1BLptAAAR",
       "memberName": "Nhóm 1: a",
-      "finalScore": 34.5,
+      "finalScore": 120,
       "hostEvaluation": {
-        "totalScore": 34.5,
+        "totalScore": 40,
         "details": [
           {
             "criteriaId": 1,
             "criteriaName": "Ý tưởng & sáng tạo",
-            "criteriaDescription": "Đánh giá tính sáng tạo và độc đáo của ý tưởng",
             "maxScore": 8,
             "levelId": 4,
             "levelName": "Xuất sắc",
@@ -118,7 +104,6 @@
           {
             "criteriaId": 2,
             "criteriaName": "Kiến thức về Ai Cập cổ đại",
-            "criteriaDescription": "Đánh giá mức độ hiểu biết về chủ đề",
             "maxScore": 10,
             "levelId": 4,
             "levelName": "Xuất sắc",
@@ -128,7 +113,111 @@
           {
             "criteriaId": 3,
             "criteriaName": "Ứng dụng STEM",
-            "criteriaDescription": "Đánh giá khả năng ứng dụng khoa học - kỹ thuật - toán",
+            "maxScore": 10,
+            "levelId": 4,
+            "levelName": "Xuất sắc",
+            "levelEmoji": "😍",
+            "score": 10
+          },
+          {
+            "criteriaId": 4,
+            "criteriaName": "Hình thức & sản phẩm",
+            "maxScore": 6,
+            "levelId": 4,
+            "levelName": "Xuất sắc",
+            "levelEmoji": "😍",
+            "score": 6
+          },
+          {
+            "criteriaId": 5,
+            "criteriaName": "Làm việc nhóm & thuyết trình",
+            "maxScore": 6,
+            "levelId": 4,
+            "levelName": "Xuất sắc",
+            "levelEmoji": "😍",
+            "score": 6
+          }
+        ]
+      },
+      "peerEvaluations": [
+        {
+          "evaluatorId": "PMSPVpbEndaUoHFbAAAT",
+          "evaluatorName": "Nhóm 2: b",
+          "evaluations": [
+            {
+              "criteriaId": 1,
+              "criteriaName": "Hỗ trợ đồng đội",
+              "maxScore": 10,
+              "levelId": 4,
+              "levelName": "Xuất sắc",
+              "levelEmoji": "😍",
+              "score": 10
+            },
+            {
+              "criteriaId": 2,
+              "criteriaName": "Chia sẻ kiến thức",
+              "maxScore": 10,
+              "levelId": 4,
+              "levelName": "Xuất sắc",
+              "levelEmoji": "😍",
+              "score": 10
+            },
+            {
+              "criteriaId": 3,
+              "criteriaName": "Thái độ làm việc",
+              "maxScore": 10,
+              "levelId": 4,
+              "levelName": "Xuất sắc",
+              "levelEmoji": "😍",
+              "score": 10
+            },
+            {
+              "criteriaId": 4,
+              "criteriaName": "Đóng góp ý kiến",
+              "maxScore": 10,
+              "levelId": 4,
+              "levelName": "Xuất sắc",
+              "levelEmoji": "😍",
+              "score": 10
+            }
+          ]
+        }
+      ],
+      "peerAverageScore": 40,
+      "summary": {
+        "hostScore": 40,
+        "peerAverageScore": 40,
+        "totalEvaluationScore": 80
+      }
+    },
+    {
+      "memberId": "PMSPVpbEndaUoHFbAAAT",
+      "memberName": "Nhóm 2: b",
+      "finalScore": 80,
+      "hostEvaluation": {
+        "totalScore": 30,
+        "details": [
+          {
+            "criteriaId": 1,
+            "criteriaName": "Ý tưởng & sáng tạo",
+            "maxScore": 8,
+            "levelId": 3,
+            "levelName": "Tốt",
+            "levelEmoji": "😊",
+            "score": 6
+          },
+          {
+            "criteriaId": 2,
+            "criteriaName": "Kiến thức về Ai Cập cổ đại",
+            "maxScore": 10,
+            "levelId": 3,
+            "levelName": "Tốt",
+            "levelEmoji": "😊",
+            "score": 7.5
+          },
+          {
+            "criteriaId": 3,
+            "criteriaName": "Ứng dụng STEM",
             "maxScore": 10,
             "levelId": 3,
             "levelName": "Tốt",
@@ -138,7 +227,6 @@
           {
             "criteriaId": 4,
             "criteriaName": "Hình thức & sản phẩm",
-            "criteriaDescription": "Đánh giá chất lượng và tính thẩm mỹ của sản phẩm",
             "maxScore": 6,
             "levelId": 3,
             "levelName": "Tốt",
@@ -148,7 +236,6 @@
           {
             "criteriaId": 5,
             "criteriaName": "Làm việc nhóm & thuyết trình",
-            "criteriaDescription": "Đánh giá khả năng hợp tác và trình bày",
             "maxScore": 6,
             "levelId": 3,
             "levelName": "Tốt",
@@ -157,19 +244,62 @@
           }
         ]
       },
-      "peerEvaluations": [],
-      "peerAverageScore": 0,
+      "peerEvaluations": [
+        {
+          "evaluatorId": "BJi70JtbYXw1BLptAAAR",
+          "evaluatorName": "Nhóm 1: a",
+          "evaluations": [
+            {
+              "criteriaId": 1,
+              "criteriaName": "Hỗ trợ đồng đội",
+              "maxScore": 10,
+              "levelId": 4,
+              "levelName": "Xuất sắc",
+              "levelEmoji": "😍",
+              "score": 10
+            },
+            {
+              "criteriaId": 2,
+              "criteriaName": "Chia sẻ kiến thức",
+              "maxScore": 10,
+              "levelId": 4,
+              "levelName": "Xuất sắc",
+              "levelEmoji": "😍",
+              "score": 10
+            },
+            {
+              "criteriaId": 3,
+              "criteriaName": "Thái độ làm việc",
+              "maxScore": 10,
+              "levelId": 4,
+              "levelName": "Xuất sắc",
+              "levelEmoji": "😍",
+              "score": 10
+            },
+            {
+              "criteriaId": 4,
+              "criteriaName": "Đóng góp ý kiến",
+              "maxScore": 10,
+              "levelId": 4,
+              "levelName": "Xuất sắc",
+              "levelEmoji": "😍",
+              "score": 10
+            }
+          ]
+        }
+      ],
+      "peerAverageScore": 40,
       "summary": {
-        "hostScore": 34.5,
-        "peerAverageScore": 0,
-        "totalEvaluationScore": 34.5
+        "hostScore": 30,
+        "peerAverageScore": 40,
+        "totalEvaluationScore": 70
       }
     }
   ],
   "summary": {
-    "totalMembers": 1,
-    "totalEvaluators": 1,
-    "averageHostScore": 34.5,
-    "averagePeerScore": 0
+    "totalMembers": 2,
+    "totalEvaluators": 2,
+    "averageHostScore": 35,
+    "averagePeerScore": 40
   }
 }
