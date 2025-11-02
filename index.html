@@ -679,9 +679,7 @@
 
         /* Submission notification popup */
         .submission-notification {
-            position: fixed;
-            bottom: 80px;
-            right: 20px;
+            position: relative;
             background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
             color: white;
             padding: 15px 20px;
@@ -689,16 +687,28 @@
             font-size: 1rem;
             font-weight: 600;
             box-shadow: 0 8px 25px rgba(67, 233, 123, 0.4);
-            z-index: 1000;
-            transform: translateX(400px);
-            transition: transform 0.5s ease-in-out;
             border: 2px solid rgba(255, 255, 255, 0.3);
             backdrop-filter: blur(10px);
-            max-width: 300px;
+            width: 100%;
             word-wrap: break-word;
+            animation: slideInRight 0.5s ease-out;
+            opacity: 0;
+            transform: translateX(400px);
+        }
+
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(400px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
         }
 
         .submission-notification.show {
+            opacity: 1;
             transform: translateX(0);
         }
 
@@ -836,9 +846,8 @@
     <div class="host-name-permanent" id="hostNamePermanent"></div>
     
     <!-- Submission Notification Popup -->
-    <div class="submission-notification" id="submissionNotification" style="display: none;">
-        <span class="icon">📝</span>
-        <span class="group-name" id="submissionGroupName">Nhóm 1: Văn A</span> đã nộp bài
+    <div id="submissionNotificationsContainer" style="position: fixed; bottom: 80px; right: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 10px; max-width: 300px; align-items: flex-end;">
+        <!-- Danh sách submission notifications sẽ được thêm vào đây -->
     </div>
     
     <!-- Evaluation Notification Popup -->
@@ -1364,7 +1373,16 @@
                 const playerType = currentPlayer.startsWith('Nhóm') ? 'group' : 'teacher';
                 const groupNumber = playerType === 'group' ? 
                     currentPlayer.match(/Nhóm (\d+):/)?.[1] || '1' : '1';
-                const playerName = currentPlayer.replace(/^(Nhóm \d+: |Thầy\/Cô: )/, '');
+                // Loại bỏ tất cả prefix để tránh duplicate: "Nhóm 1: Nhóm 1: a" -> "a"
+                let playerName = currentPlayer;
+                if (playerType === 'group') {
+                    // Loại bỏ tất cả "Nhóm X: " prefix
+                    playerName = playerName.replace(/^Nhóm \d+: /g, '').trim();
+                } else {
+                    // Loại bỏ tất cả "Thầy/Cô: " prefix
+                    playerName = playerName.replace(/^Thầy\/Cô: /g, '').trim();
+                }
+                console.log(`📝 Restoring player: original="${currentPlayer}", extracted="${playerName}"`);
                 
                 socket.emit('join-room', { roomCode: currentRoom, playerType, playerName, groupNumber });
             }
@@ -1674,11 +1692,16 @@
                 document.getElementById('lobbyHostName').textContent = host.name;
             }
             
-            // Cập nhật điểm của người chơi hiện tại
-            if (!isHost && currentPlayer) {
+            // Cập nhật điểm của người chơi hiện tại và đảm bảo currentPlayer được set đúng
+            if (!isHost) {
                 // Tìm player data bằng cách so sánh ID thay vì tên để tránh lỗi với nhóm
                 const currentPlayerData = data.players.find(p => p.id === socket.id);
                 if (currentPlayerData) {
+                    // Cập nhật currentPlayer từ server để đảm bảo đúng (quan trọng cho thầy/cô)
+                    if (!currentPlayer || currentPlayer !== currentPlayerData.name) {
+                        console.log(`📝 Updating currentPlayer: "${currentPlayer}" → "${currentPlayerData.name}"`);
+                        currentPlayer = currentPlayerData.name;
+                    }
                     currentPlayerScore = currentPlayerData.score || 0;
                     updateConnectionStatus(true);
                     
@@ -2141,8 +2164,8 @@
         });
 
         function displayQuestion(data) {
-            // Ẩn popup nộp bài của câu trước (nếu còn)
-            hideSubmissionNotification();
+            // Ẩn tất cả popup nộp bài của câu trước (nếu còn)
+            hideSubmissionNotifications();
             currentQuestionIndex = data.currentQuestion;
             questionStartTime = Date.now();
             
@@ -2282,8 +2305,9 @@
         // Nhận thông báo khi có member đánh giá xong (chỉ host)
         socket.on('member-evaluation-submitted', (data) => {
             if (isHost) {
-                console.log(`⭐ ${data.evaluatorName} đã hoàn thành đánh giá ${data.evaluatedCount} người`);
-                showEvaluationNotification(data.evaluatorName, data.evaluatedCount);
+                const evaluatorType = data.isTeacher ? 'Thầy/Cô' : 'Nhóm';
+                console.log(`⭐ ${evaluatorType} ${data.evaluatorName} đã hoàn thành đánh giá ${data.evaluatedCount} nhóm`);
+                showEvaluationNotification(data.evaluatorName, data.evaluatedCount, data.isTeacher);
             }
         });
 
@@ -2396,8 +2420,8 @@
         }
 
         socket.on('quiz-ended', (data) => {
-            // Ẩn popup nộp bài khi kết thúc quiz
-            hideSubmissionNotification();
+            // Ẩn tất cả popup nộp bài khi kết thúc quiz
+            hideSubmissionNotifications();
             clearInterval(timerInterval);
             console.log('Quiz ended, results:', data.results);
             
@@ -2821,29 +2845,65 @@
         }
 
         // Submission notification functions
+        // Lưu danh sách submission notifications với thời gian
+        window.submissionNotifications = window.submissionNotifications || [];
+        
         function showSubmissionNotification(groupName) {
-            const notification = document.getElementById('submissionNotification');
-            const groupNameEl = document.getElementById('submissionGroupName');
+            const container = document.getElementById('submissionNotificationsContainer');
+            if (!container) return;
             
-            if (notification && groupNameEl) {
-                groupNameEl.textContent = groupName;
-                notification.style.display = 'block';
-                
-                // Trigger animation
-                setTimeout(() => {
-                    notification.classList.add('show');
-                }, 100);
-                
-                // Play sound
-                playSubmissionSound();
-            }
+            // Tạo popup mới
+            const notificationId = `submission-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            const notification = document.createElement('div');
+            notification.className = 'submission-notification';
+            notification.id = notificationId;
+            notification.dataset.timestamp = Date.now();
+            notification.innerHTML = `
+                <span class="icon">📝</span>
+                <span class="group-name">${groupName}</span> đã nộp bài
+            `;
+            
+            // Thêm vào container
+            container.appendChild(notification);
+            
+            // Lưu vào danh sách
+            window.submissionNotifications.push({
+                id: notificationId,
+                groupName: groupName,
+                timestamp: Date.now(),
+                element: notification
+            });
+            
+            // Sắp xếp lại theo thứ tự thời gian (nhanh nhất ở trên)
+            // Sắp xếp theo timestamp tăng dần (nhanh nhất = timestamp nhỏ nhất = ở trên cùng)
+            window.submissionNotifications.sort((a, b) => a.timestamp - b.timestamp);
+            
+            // Xóa và thêm lại theo thứ tự mới
+            container.innerHTML = '';
+            window.submissionNotifications.forEach(item => {
+                container.appendChild(item.element);
+            });
+            
+            // Trigger animation
+            setTimeout(() => {
+                notification.classList.add('show');
+            }, 100);
+            
+            // Play sound
+            playSubmissionSound();
+            
+            console.log(`📝 Submission notification added: ${groupName} (Total: ${window.submissionNotifications.length})`);
         }
 
-        function hideSubmissionNotification() {
-            const notification = document.getElementById('submissionNotification');
-            if (!notification) return;
-            notification.classList.remove('show');
-            notification.style.display = 'none';
+        function hideSubmissionNotifications() {
+            const container = document.getElementById('submissionNotificationsContainer');
+            if (!container) return;
+            
+            // Xóa tất cả notifications
+            container.innerHTML = '';
+            window.submissionNotifications = [];
+            
+            console.log('📝 All submission notifications cleared');
         }
 
         function playSubmissionSound() {
@@ -2885,13 +2945,18 @@
         }
 
         // Evaluation notification functions
-        function showEvaluationNotification(evaluatorName, evaluatedCount) {
+        function showEvaluationNotification(evaluatorName, evaluatedCount, isTeacher = false) {
             const notification = document.getElementById('evaluationNotification');
             const evaluatorNameEl = document.getElementById('evaluationGroupName');
             const evaluationCountEl = document.getElementById('evaluationCount');
             
             if (notification && evaluatorNameEl && evaluationCountEl) {
-                evaluatorNameEl.textContent = evaluatorName;
+                // Hiển thị rõ ràng hơn khi là thầy/cô
+                if (isTeacher) {
+                    evaluatorNameEl.textContent = `${evaluatorName} (Thầy/Cô)`;
+                } else {
+                    evaluatorNameEl.textContent = evaluatorName;
+                }
                 evaluationCountEl.textContent = evaluatedCount;
                 notification.style.display = 'block';
                 
@@ -3692,23 +3757,71 @@
         // Phase chuyển tiếp: host -> members -> teachers
         socket.on('evaluation-phase', (data) => {
             const phase = data?.phase;
-            if (!phase) return;
+            console.log(`📥 evaluation-phase received: phase=${phase}, isHost=${isHost}, currentPlayer="${currentPlayer}"`);
+            if (!phase) {
+                console.log('   ❌ No phase in data, returning');
+                return;
+            }
             if (phase === 'members') {
+                console.log('   📋 Phase is members');
                 if (!isHost && !currentPlayer?.startsWith('Thầy/Cô: ')) {
+                    console.log('   ✅ Showing member evaluation form for member');
                     renderMemberEvaluationForm(window.evaluatedPlayers);
                     showScreen('memberEvaluationScreen');
+                } else if (!isHost && currentPlayer?.startsWith('Thầy/Cô: ')) {
+                    console.log('   ⚠️ Teacher in members phase, showing lobby');
+                    showScreen('lobbyScreen');
                 }
                 if (isHost) {
+                    console.log('   ✅ Showing lobby for host');
                     showScreen('lobbyScreen');
                 }
             }
             if (phase === 'teachers') {
+                console.log('   👨‍🏫 Phase is teachers');
+                const isTeacher = !isHost && currentPlayer?.startsWith('Thầy/Cô: ');
+                console.log(`   - isTeacher: ${isTeacher}, isHost: ${isHost}, currentPlayer: "${currentPlayer}"`);
+                
                 // Thầy/Cô sẽ dùng cùng form member (tiêu chí memberCriteria) theo design hiện tại
-                if (!isHost && currentPlayer?.startsWith('Thầy/Cô: ')) {
-                    renderMemberEvaluationForm(window.evaluatedPlayers);
-                    showScreen('memberEvaluationScreen');
+                if (isTeacher) {
+                    console.log('   ✅ Showing evaluation form for teacher');
+                    // Nếu chưa có evaluatedPlayers, lấy lại từ server
+                    if (!window.evaluatedPlayers || window.evaluatedPlayers.length === 0) {
+                        console.log('   ⚠️ evaluatedPlayers not found, fetching from server...');
+                        socket.emit('get-players');
+                        socket.once('players-list', (data) => {
+                            const evaluatedPlayers = data.players.filter(p => 
+                                !p.isHost && 
+                                !p.name.startsWith('Thầy/Cô: ') &&
+                                !p.id.startsWith('default-member-')
+                            );
+                            window.evaluatedPlayers = evaluatedPlayers;
+                            console.log('   ✅ Fetched evaluatedPlayers:', evaluatedPlayers.map(p => p.name));
+                            if (evaluatedPlayers.length > 0) {
+                                renderMemberEvaluationForm(window.evaluatedPlayers);
+                                showScreen('memberEvaluationScreen');
+                            } else {
+                                console.log('   ⚠️ No evaluatedPlayers found, showing lobby');
+                                showScreen('lobbyScreen');
+                            }
+                        });
+                    } else {
+                        console.log('   ✅ Using existing evaluatedPlayers:', window.evaluatedPlayers.map(p => p.name));
+                        if (window.evaluatedPlayers.length > 0) {
+                            renderMemberEvaluationForm(window.evaluatedPlayers);
+                            showScreen('memberEvaluationScreen');
+                        } else {
+                            console.log('   ⚠️ evaluatedPlayers is empty, showing lobby');
+                            showScreen('lobbyScreen');
+                        }
+                    }
                 } else if (!isHost) {
                     // Các nhóm đã xong, quay lại phòng chờ
+                    console.log('   ✅ Showing lobby for member (not teacher)');
+                    showScreen('lobbyScreen');
+                }
+                if (isHost) {
+                    console.log('   ✅ Showing lobby for host');
                     showScreen('lobbyScreen');
                 }
             }

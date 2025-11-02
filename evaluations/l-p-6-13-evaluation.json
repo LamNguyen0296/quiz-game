@@ -1,12 +1,12 @@
 {
   "results": {
-    "BJi70JtbYXw1BLptAAAR": {
+    "lNwcjX809q63_4aYAAAP": {
       "name": "Nhóm 1: a",
       "quizScore": 0,
       "hostScore": 40,
-      "peerScore": 40,
-      "teacherScore": 0,
-      "totalScore": 80,
+      "peerScore": 0,
+      "teacherScore": 10,
+      "totalScore": 50,
       "details": {
         "hostEvaluation": {
           "1": 4,
@@ -15,34 +15,20 @@
           "4": 4,
           "5": 4
         },
-        "peerEvaluations": [
-          40
+        "peerEvaluations": [],
+        "teacherEvaluations": [
+          10
         ],
-        "teacherEvaluations": []
-      }
-    },
-    "PMSPVpbEndaUoHFbAAAT": {
-      "name": "Nhóm 2: b",
-      "quizScore": 0,
-      "hostScore": 30,
-      "peerScore": 40,
-      "teacherScore": 0,
-      "totalScore": 70,
-      "details": {
-        "hostEvaluation": {
-          "1": 3,
-          "2": 3,
-          "3": 3,
-          "4": 3,
-          "5": 3
-        },
-        "peerEvaluations": [
-          40
-        ],
-        "teacherEvaluations": []
+        "peerEvaluationsDetails": [],
+        "teacherEvaluationsDetails": [
+          {
+            "name": "Thầy/Cô: Thanh tra",
+            "score": 10
+          }
+        ]
       }
     }
   },
   "roomCode": "QUIZ12",
-  "completedAt": "2025-10-31T15:29:17.098Z"
+  "completedAt": "2025-11-01T16:07:03.914Z"
 }

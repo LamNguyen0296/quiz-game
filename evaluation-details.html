@@ -476,6 +476,12 @@
                     <div class="stat-value">${summary.averagePeerScore % 1 === 0 ? summary.averagePeerScore.toString() : summary.averagePeerScore.toFixed(1)}</div>
                     <div class="stat-label">Điểm TB từ Peers</div>
                 </div>
+                ${summary.averageTeacherScore !== undefined ? `
+                <div class="stat-card">
+                    <div class="stat-value">${summary.averageTeacherScore % 1 === 0 ? summary.averageTeacherScore.toString() : summary.averageTeacherScore.toFixed(1)}</div>
+                    <div class="stat-label">Điểm TB từ Thầy/Cô</div>
+                </div>
+                ` : ''}
             `;
 
             // Overview content
@@ -565,6 +571,34 @@
                             </div>
                         `).join('')}
                     </div>
+
+                    ${member.teacherEvaluations && member.teacherEvaluations.length > 0 ? `
+                    <div class="evaluation-section">
+                        <div class="section-title">👨‍🏫 Đánh giá từ Thầy/Cô (TB: ${member.teacherAverageScore % 1 === 0 ? member.teacherAverageScore.toString() : member.teacherAverageScore.toFixed(1)} điểm)</div>
+                        ${member.teacherEvaluations.map(teacher => `
+                            <div style="margin-bottom: 20px;">
+                                <div style="font-weight: 600; color: #28a745; margin-bottom: 10px;">
+                                    👨‍🏫 ${teacher.evaluatorName}
+                                </div>
+                                <div class="criteria-grid">
+                                    ${teacher.evaluations.map(eval => `
+                                        <div class="criteria-item">
+                                            <div class="criteria-name">${eval.criteriaName}</div>
+                                            <div class="criteria-description">${eval.criteriaDescription}</div>
+                                            <div class="criteria-score">
+                                                <span class="score-value">${eval.score % 1 === 0 ? eval.score.toString() : eval.score.toFixed(1)} điểm</span>
+                                                <span class="score-max">/ ${eval.maxScore}</span>
+                                            </div>
+                                            <div class="evaluator-info">
+                                                📊 Mức độ: ${eval.levelName} ${eval.levelEmoji}
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    ` : ''}
                 </div>
             `).join('');
         }
@@ -573,22 +607,43 @@
         function populateEvaluatorsTab() {
             const evaluatorsMap = new Map();
             
-            // Tổng hợp dữ liệu theo người đánh giá
+            // Tổng hợp dữ liệu theo người đánh giá (bao gồm peers và teachers)
             evaluationData.memberDetails.forEach(member => {
-                member.peerEvaluations.forEach(peer => {
-                    if (!evaluatorsMap.has(peer.evaluatorId)) {
-                        evaluatorsMap.set(peer.evaluatorId, {
-                            name: peer.evaluatorName,
-                            evaluations: []
+                // Peers
+                if (member.peerEvaluations) {
+                    member.peerEvaluations.forEach(peer => {
+                        if (!evaluatorsMap.has(peer.evaluatorId)) {
+                            evaluatorsMap.set(peer.evaluatorId, {
+                                name: peer.evaluatorName,
+                                evaluations: []
+                            });
+                        }
+                        
+                        evaluatorsMap.get(peer.evaluatorId).evaluations.push({
+                            memberName: member.memberName,
+                            memberId: member.memberId,
+                            evaluations: peer.evaluations
                         });
-                    }
-                    
-                    evaluatorsMap.get(peer.evaluatorId).evaluations.push({
-                        memberName: member.memberName,
-                        memberId: member.memberId,
-                        evaluations: peer.evaluations
                     });
-                });
+                }
+                
+                // Teachers
+                if (member.teacherEvaluations) {
+                    member.teacherEvaluations.forEach(teacher => {
+                        if (!evaluatorsMap.has(teacher.evaluatorId)) {
+                            evaluatorsMap.set(teacher.evaluatorId, {
+                                name: teacher.evaluatorName,
+                                evaluations: []
+                            });
+                        }
+                        
+                        evaluatorsMap.get(teacher.evaluatorId).evaluations.push({
+                            memberName: member.memberName,
+                            memberId: member.memberId,
+                            evaluations: teacher.evaluations
+                        });
+                    });
+                }
             });
 
             document.getElementById('evaluatorsContent').innerHTML = Array.from(evaluatorsMap.entries()).map(([evaluatorId, evaluator]) => `

@@ -1,7 +1,7 @@
 {
   "hostName": "Lớp 6/13",
   "roomCode": "QUIZ12",
-  "timestamp": "2025-10-31T15:20:20.650Z",
+  "timestamp": "2025-11-01T16:24:38.212Z",
   "quiz": {
     "questions": [
       {
@@ -23,7 +23,7 @@
   "results": [
     {
       "playerName": "Nhóm 1: a",
-      "playerId": "xP4MsNnf1IUtdxcAAAAH",
+      "playerId": "fI8hLMxA03M0xXX4AAAP",
       "totalQuestions": 1,
       "correctAnswers": 0,
       "score": 0,
@@ -47,7 +47,7 @@
     },
     {
       "playerName": "Nhóm 2: b",
-      "playerId": "Wu4bAVXNA86QUnIDAAAJ",
+      "playerId": "JvnyVxAsNr2pUGSNAAAR",
       "totalQuestions": 1,
       "correctAnswers": 0,
       "score": 0,
@@ -62,57 +62,9 @@
             "a"
           ],
           "correctAnswer": 0,
-          "playerAnswer": 3,
+          "playerAnswer": 2,
           "isCorrect": false,
           "answered": true,
-          "pointsEarned": 0
-        }
-      ]
-    },
-    {
-      "playerName": "Nhóm 3: c",
-      "playerId": "3S_6LgD0phqercYAAAAR",
-      "totalQuestions": 1,
-      "correctAnswers": 0,
-      "score": 0,
-      "details": [
-        {
-          "questionNumber": 1,
-          "question": "abcdttygg ?",
-          "options": [
-            "a",
-            "a",
-            "a",
-            "a"
-          ],
-          "correctAnswer": 0,
-          "playerAnswer": null,
-          "isCorrect": false,
-          "answered": false,
-          "pointsEarned": 0
-        }
-      ]
-    },
-    {
-      "playerName": "Nhóm 4: d",
-      "playerId": "x8G_RXfUhwUbYo4mAAAT",
-      "totalQuestions": 1,
-      "correctAnswers": 0,
-      "score": 0,
-      "details": [
-        {
-          "questionNumber": 1,
-          "question": "abcdttygg ?",
-          "options": [
-            "a",
-            "a",
-            "a",
-            "a"
-          ],
-          "correctAnswer": 0,
-          "playerAnswer": null,
-          "isCorrect": false,
-          "answered": false,
           "pointsEarned": 0
         }
       ]

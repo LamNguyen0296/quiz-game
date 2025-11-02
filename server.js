@@ -199,10 +199,15 @@ function saveEvaluationLogs(hostName, roomCode, evaluations, evaluationSetup, pl
         }
 
         // Merge TEACHERS evaluations
+        console.log(`📝 saveEvaluationLogs - evaluations.teachers:`, evaluations?.teachers ? JSON.stringify(evaluations.teachers, null, 2) : 'undefined');
         if (evaluations && evaluations.teachers) {
+            const teacherCount = Object.keys(evaluations.teachers).length;
+            console.log(`📝 Merging ${teacherCount} teacher evaluations into logs`);
             Object.keys(evaluations.teachers).forEach(teacherId => {
                 const evalsForPeers = evaluations.teachers[teacherId] || {};
                 if (!merged.evaluations.teachers[teacherId]) merged.evaluations.teachers[teacherId] = {};
+                const peerCount = Object.keys(evalsForPeers).length;
+                console.log(`   👨‍🏫 Teacher ${teacherId}: ${peerCount} peer evaluations`);
                 Object.keys(evalsForPeers).forEach(peerId => {
                     merged.evaluations.teachers[teacherId][peerId] = {
                         ...(merged.evaluations.teachers[teacherId][peerId] || {}),
@@ -210,6 +215,9 @@ function saveEvaluationLogs(hostName, roomCode, evaluations, evaluationSetup, pl
                     };
                 });
             });
+            console.log(`✅ Merged teacher evaluations into logs:`, JSON.stringify(merged.evaluations.teachers, null, 2));
+        } else {
+            console.log(`⚠️ No teacher evaluations to merge`);
         }
 
         // Xây bảng tóm tắt giống hình (Host, TB Thầy/Cô, TB Nhóm còn lại, Tổng)
@@ -287,6 +295,54 @@ function saveEvaluationLogs(hostName, roomCode, evaluations, evaluationSetup, pl
 function getEvaluationLogsFilePath(hostName) {
     const fileName = `${hostName.toLowerCase().replace(/[^a-z0-9]/g, '')}-evaluation-logs.json`;
     return path.join(__dirname, 'quizzes', fileName);
+}
+
+// Xóa logs đánh giá
+function clearEvaluationLogs(hostName, roomCode) {
+    try {
+        let deletedCount = 0;
+        
+        // 1. Xóa evaluation logs
+        const logsPath = getEvaluationLogsFilePath(hostName);
+        if (fs.existsSync(logsPath)) {
+            fs.unlinkSync(logsPath);
+            deletedCount++;
+            console.log(`🗑️ Đã xóa evaluation logs: ${logsPath}`);
+        }
+        
+        // 2. Xóa evaluation details
+        if (roomCode) {
+            const safeHostName = sanitizeFileName(hostName);
+            const safeRoomCode = sanitizeFileName(roomCode);
+            const evalDetailsPath = path.join(__dirname, 'evaluation-details', `${safeHostName}-${safeRoomCode}-evaluation-details.json`);
+            if (fs.existsSync(evalDetailsPath)) {
+                fs.unlinkSync(evalDetailsPath);
+                deletedCount++;
+                console.log(`🗑️ Đã xóa evaluation details: ${evalDetailsPath}`);
+            }
+        }
+        
+        // 3. Xóa quiz details (nếu cần)
+        if (roomCode) {
+            const safeHostName = sanitizeFileName(hostName);
+            const safeRoomCode = sanitizeFileName(roomCode);
+            const quizDetailsPath = path.join(__dirname, 'quiz-details', `${safeHostName}-${safeRoomCode}-quiz-details.json`);
+            if (fs.existsSync(quizDetailsPath)) {
+                fs.unlinkSync(quizDetailsPath);
+                deletedCount++;
+                console.log(`🗑️ Đã xóa quiz details: ${quizDetailsPath}`);
+            }
+        }
+        
+        if (deletedCount > 0) {
+            console.log(`✅ Đã xóa ${deletedCount} file(s) logs của ${hostName}`);
+            return true;
+        }
+        return false;
+    } catch (error) {
+        console.error('❌ Error clearing evaluation logs:', error);
+        return false;
+    }
 }
 
 function loadScoresFromFile(hostName) {
@@ -502,17 +558,13 @@ app.get('/api/evaluation-details/:hostName/:roomCode', (req, res) => {
         const safeRoomCode = sanitizeFileName(roomCode);
 
         const detailsFilePath = path.join(__dirname, 'evaluation-details', `${safeHostName}-${safeRoomCode}-evaluation-details.json`);
-        // Nếu file chi tiết đã tồn tại thì trả về ngay
-        if (fs.existsSync(detailsFilePath)) {
-            const data = JSON.parse(fs.readFileSync(detailsFilePath, 'utf8'));
-            return res.json(data);
-        }
-
-        // Nếu chưa có file chi tiết, thử dựng từ logs + setup + scores
+        
         // Quan trọng: phải dùng đúng quy tắc đặt tên đã dùng khi lưu logs
         // getEvaluationLogsFilePath(): hostName.toLowerCase().replace(/[^a-z0-9]/g, '') + '-evaluation-logs.json'
         const logsKey = hostName.toLowerCase().replace(/[^a-z0-9]/g, '');
         const quizzesLogPath = path.join(__dirname, 'quizzes', `${logsKey}-evaluation-logs.json`);
+        
+        // Luôn tạo lại file từ logs mới nhất để đảm bảo có teacher evaluations
         if (fs.existsSync(quizzesLogPath)) {
             const logData = JSON.parse(fs.readFileSync(quizzesLogPath, 'utf8'));
 
@@ -535,17 +587,25 @@ app.get('/api/evaluation-details/:hostName/:roomCode', (req, res) => {
                 players = (scoreData.scores || []).map(s => ({ id: s.id, name: s.name, isHost: false, score: s.score || 0 }));
             }
 
-            // Dựng file chi tiết nếu có đủ dữ liệu cần thiết
+            // Luôn tạo lại file chi tiết từ logs mới nhất để đảm bảo có teacher evaluations
             if (setup && logData && logData.evaluations && players.length > 0) {
+                console.log(`🔄 Rebuilding evaluation-details.json from latest logs (includes teacher evaluations)`);
                 const ok = saveEvaluationDetails(hostName, roomCode, setup, logData.evaluations, players);
                 if (ok && fs.existsSync(detailsFilePath)) {
                     const built = JSON.parse(fs.readFileSync(detailsFilePath, 'utf8'));
+                    console.log(`✅ Evaluation details rebuilt with ${built.memberDetails?.[0]?.teacherEvaluations?.length || 0} teacher evaluations`);
                     return res.json(built);
                 }
             }
 
             // Nếu không dựng được, trả về dữ liệu logs như phương án cuối
             return res.json(logData);
+        }
+        
+        // Nếu không có logs file, thử đọc file chi tiết cũ (nếu có)
+        if (fs.existsSync(detailsFilePath)) {
+            const data = JSON.parse(fs.readFileSync(detailsFilePath, 'utf8'));
+            return res.json(data);
         }
 
         return res.status(404).json({ error: 'Evaluation details not found' });
@@ -580,6 +640,72 @@ app.get('/api/quiz-details', (req, res) => {
     } catch (error) {
         console.error('Error listing quiz details:', error);
         res.status(500).json({ error: 'Error listing quiz details' });
+    }
+});
+
+// API để lấy evaluation history với summaryTable
+app.get('/api/evaluation-history/:hostName', (req, res) => {
+    const { hostName } = req.params;
+    try {
+        const logsKey = hostName.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const logsPath = path.join(__dirname, 'quizzes', `${logsKey}-evaluation-logs.json`);
+        
+        if (fs.existsSync(logsPath)) {
+            const logData = JSON.parse(fs.readFileSync(logsPath, 'utf8'));
+            
+            // Trả về summaryTable và thông tin chi tiết về peer và teacher evaluations
+            const historyData = {
+                hostName: logData.hostName,
+                roomCode: logData.roomCode,
+                savedAt: logData.savedAt,
+                lastUpdated: logData.lastUpdated,
+                summaryTable: logData.summaryTable || [],
+                // Thêm chi tiết peer evaluations
+                peerDetails: {},
+                // Thêm chi tiết teacher evaluations
+                teacherDetails: {}
+            };
+            
+            // Lấy chi tiết peer evaluations
+            if (logData.evaluations && logData.evaluations.members) {
+                Object.keys(logData.evaluations.members).forEach(evaluatorId => {
+                    const evaluatorEvals = logData.evaluations.members[evaluatorId];
+                    Object.keys(evaluatorEvals).forEach(peerId => {
+                        if (!historyData.peerDetails[peerId]) {
+                            historyData.peerDetails[peerId] = [];
+                        }
+                        // Tìm tên evaluator từ scores hoặc evaluations
+                        historyData.peerDetails[peerId].push({
+                            evaluatorId: evaluatorId,
+                            score: 0 // Sẽ tính sau
+                        });
+                    });
+                });
+            }
+            
+            // Lấy chi tiết teacher evaluations
+            if (logData.evaluations && logData.evaluations.teachers) {
+                Object.keys(logData.evaluations.teachers).forEach(teacherId => {
+                    const teacherEvals = logData.evaluations.teachers[teacherId];
+                    Object.keys(teacherEvals).forEach(peerId => {
+                        if (!historyData.teacherDetails[peerId]) {
+                            historyData.teacherDetails[peerId] = [];
+                        }
+                        historyData.teacherDetails[peerId].push({
+                            teacherId: teacherId,
+                            score: 0 // Sẽ tính sau
+                        });
+                    });
+                });
+            }
+            
+            return res.json(historyData);
+        }
+        
+        return res.status(404).json({ error: 'Evaluation history not found' });
+    } catch (error) {
+        console.error('Error loading evaluation history:', error);
+        res.status(500).json({ error: 'Error loading evaluation history' });
     }
 });
 
@@ -815,9 +941,11 @@ io.on('connection', (socket) => {
                 return;
             }
             
-            formattedPlayerName = `Nhóm ${groupNumber}: ${playerName.trim()}`;
+            // Loại bỏ tất cả prefix "Nhóm X: " để tránh duplicate
+            let cleanPlayerName = playerName.trim().replace(/^Nhóm \d+: /g, '').trim();
+            formattedPlayerName = `Nhóm ${groupNumber}: ${cleanPlayerName}`;
             isDefaultGroup = true;
-            console.log(`✅ Joining as group: ${formattedPlayerName}`);
+            console.log(`✅ Joining as group: ${formattedPlayerName} (cleaned from "${playerName.trim()}")`);
         } else if (playerType === 'teacher') {
             // Nếu chọn thầy/cô
             if (!playerName || playerName.trim() === '') {
@@ -825,9 +953,11 @@ io.on('connection', (socket) => {
                 return;
             }
             
-            formattedPlayerName = `Thầy/Cô: ${playerName.trim()}`;
+            // Loại bỏ tất cả prefix "Thầy/Cô: " để tránh duplicate
+            let cleanPlayerName = playerName.trim().replace(/^Thầy\/Cô: /g, '').trim();
+            formattedPlayerName = `Thầy/Cô: ${cleanPlayerName}`;
             isDefaultGroup = false;
-            console.log(`👨‍🏫 Joining as teacher: ${formattedPlayerName}`);
+            console.log(`👨‍🏫 Joining as teacher: ${formattedPlayerName} (cleaned from "${playerName.trim()}")`);
         } else {
             socket.emit('join-error', { message: 'Vui lòng chọn loại tham gia!' });
             return;
@@ -1027,8 +1157,27 @@ io.on('connection', (socket) => {
             room.currentQuestion = 0;
             room.answers = new Map();
 
-            // Reset scores
+            // Reset scores và xóa logs đánh giá
             room.players.forEach(p => p.score = 0);
+            
+            // Reset evaluations và xóa logs khi bắt đầu quiz mới
+            room.evaluations = {
+                host: {},
+                members: {},
+                teachers: {}
+            };
+            room.evaluationScoresAdded = {
+                host: {},
+                members: {},
+                teachers: {}
+            };
+            
+            // Xóa file logs đánh giá
+            const hostPlayer = room.players.find(p => p.isHost);
+            if (hostPlayer) {
+                clearEvaluationLogs(hostPlayer.name, socket.roomCode);
+                console.log(`🗑️ Đã xóa evaluation logs khi bắt đầu quiz mới`);
+            }
 
             // Gửi câu hỏi đầu tiên
             const firstQuestion = room.quiz.questions[0];
@@ -1643,11 +1792,52 @@ io.on('connection', (socket) => {
         const room = rooms.get(roomCode);
         
         if (room && room.host === socket.id) {
-            room.evaluationSetup = setup;
+            // Xóa logs đánh giá cũ khi bắt đầu đánh giá mới
+            const hostPlayer = room.players.find(p => p.isHost);
+            if (hostPlayer) {
+                clearEvaluationLogs(hostPlayer.name, roomCode);
+                console.log(`🗑️ Đã xóa evaluation logs khi bắt đầu đánh giá mới`);
+            }
+            
+            // Đảm bảo memberCriteria được load từ file JSON
+            let finalSetup = setup;
+            try {
+                const criteriaPath = path.join(__dirname, 'evaluation-criteria.json');
+                if (fs.existsSync(criteriaPath)) {
+                    const jsonData = JSON.parse(fs.readFileSync(criteriaPath, 'utf8'));
+                    // Merge memberCriteria từ JSON vào setup
+                    if (jsonData && jsonData.memberCriteria) {
+                        if (!finalSetup) finalSetup = {};
+                        if (!finalSetup.memberCriteria) finalSetup.memberCriteria = [];
+                        // Đảm bảo memberCriteria được load từ JSON
+                        finalSetup.memberCriteria = jsonData.memberCriteria.map(jsonC => {
+                            const existing = finalSetup.memberCriteria.find(c => c.id === jsonC.id);
+                            return existing ? { ...jsonC, ...existing } : jsonC;
+                        });
+                        console.log(`✅ Loaded memberCriteria from evaluation-criteria.json: ${finalSetup.memberCriteria.length} criteria`);
+                    }
+                    // Cũng merge hostCriteria và ratingLevels nếu thiếu
+                    if (jsonData && jsonData.hostCriteria && (!finalSetup.hostCriteria || finalSetup.hostCriteria.length === 0)) {
+                        finalSetup.hostCriteria = jsonData.hostCriteria;
+                    }
+                    if (jsonData && jsonData.ratingLevels && (!finalSetup.ratingLevels || finalSetup.ratingLevels.length === 0)) {
+                        finalSetup.ratingLevels = jsonData.ratingLevels;
+                    }
+                }
+            } catch (error) {
+                console.error('⚠️ Failed to load evaluation-criteria.json:', error.message);
+            }
+            
+            room.evaluationSetup = finalSetup;
             room.evaluationActive = true;
             room.evaluationPhase = 'host'; // phases: host -> members -> teachers
             room.evaluations = {
-                host: null,
+                host: {},
+                members: {},
+                teachers: {}
+            };
+            room.evaluationScoresAdded = {
+                host: {},
                 members: {},
                 teachers: {}
             };
@@ -1657,7 +1847,7 @@ io.on('connection', (socket) => {
             console.log('📋 Evaluation started - evaluatedPlayers:', evaluatedPlayers.map(p => p.name));
             
             io.to(roomCode).emit('evaluation-started', {
-                setup: setup,
+                setup: finalSetup, // Gửi setup đã được merge với memberCriteria từ JSON
                 players: getVisiblePlayers(room.players),
                 evaluablePlayers: getEvaluablePlayers(room.players), // Những người có thể đánh giá (bao gồm Thầy/Cô)
                 evaluatedPlayers: evaluatedPlayers, // Những người có thể được đánh giá (không bao gồm Thầy/Cô)
@@ -1774,9 +1964,31 @@ io.on('connection', (socket) => {
             
             console.log(`🎯 Evaluation scores added to quiz scores for room ${roomCode}`);
 
-            // Chuyển phase sang members sau khi Host hoàn thành
-            room.evaluationPhase = 'members';
-            io.to(roomCode).emit('evaluation-phase', { phase: 'members' });
+            // Kiểm tra xem có nhóm nào cần đánh giá nhau không
+            const evaluableMembers = getEvaluablePlayers(room.players).filter(p => !p.name.startsWith('Thầy/Cô: '));
+            const evaluatedMembers = getEvaluatedPlayers(room.players);
+            
+            // Nếu có ít hơn 2 nhóm để đánh giá nhau, tự động chuyển sang phase teachers
+            if (evaluableMembers.length < 2 || evaluatedMembers.length < 2) {
+                if (hasTeachers(room)) {
+                    const teachers = room.players.filter(p => p.name && p.name.startsWith('Thầy/Cô: '));
+                    console.log(`📋 Not enough members to evaluate each other (${evaluableMembers.length} evaluable, ${evaluatedMembers.length} evaluated), moving to teachers phase`);
+                    console.log(`   👨‍🏫 Teachers in room: ${teachers.map(t => t.name).join(', ')}`);
+                    room.evaluationPhase = 'teachers';
+                    io.to(roomCode).emit('evaluation-phase', { phase: 'teachers' });
+                    console.log(`   ✅ Emitted evaluation-phase event with phase: teachers to room ${roomCode}`);
+                } else {
+                    console.log(`📋 Not enough members to evaluate each other, and no teachers, finalizing`);
+                    finalizeEvaluations(room, roomCode);
+                }
+            } else {
+                // Chuyển phase sang members sau khi Host hoàn thành
+                console.log(`📋 Moving to members phase (${evaluableMembers.length} evaluable, ${evaluatedMembers.length} evaluated)`);
+                room.evaluationPhase = 'members';
+                io.to(roomCode).emit('evaluation-phase', { phase: 'members' });
+                // Kiểm tra xem có nhóm nào đã đánh giá chưa
+                checkEvaluationProgress(room, roomCode);
+            }
         }
     });
 
@@ -1785,21 +1997,32 @@ io.on('connection', (socket) => {
         const { roomCode, evaluatorId, evaluations, evaluationScores } = data;
         const room = rooms.get(roomCode);
         
+        console.log(`📥 submit-member-evaluation received: roomCode=${roomCode}, evaluatorId=${evaluatorId}`);
+        console.log(`   - Evaluations count: ${Object.keys(evaluations || {}).length}`);
+        console.log(`   - Evaluation scores:`, evaluationScores);
+        
         if (room) {
             // Kiểm tra phase
             const evaluatorPlayerPhase = room.players.find(p => p.id === evaluatorId);
             const isTeacherPhase = evaluatorPlayerPhase && evaluatorPlayerPhase.name.startsWith('Thầy/Cô: ');
+            console.log(`   - Evaluator: ${evaluatorPlayerPhase?.name || 'Unknown'}, isTeacher: ${isTeacherPhase}`);
+            console.log(`   - Current phase: ${room.evaluationPhase}`);
+            
             if (!room.evaluationPhase) {
                 room.evaluationPhase = 'host';
             }
             if (!isTeacherPhase && room.evaluationPhase !== 'members') {
+                console.log(`   ❌ Rejected: Only allowed after Host completed. Current phase: ${room.evaluationPhase}`);
                 socket.emit('error', { message: 'Chỉ được đánh giá sau khi Host hoàn thành.' });
                 return;
             }
             if (isTeacherPhase && room.evaluationPhase !== 'teachers') {
+                console.log(`   ❌ Rejected: Teachers can only evaluate after members completed. Current phase: ${room.evaluationPhase}`);
                 socket.emit('error', { message: 'Thầy/Cô sẽ đánh giá sau khi các nhóm hoàn thành.' });
                 return;
             }
+            
+            console.log(`   ✅ Phase check passed. Processing evaluation...`);
             // Kiểm tra member không đánh giá Thầy/Cô
             const hasEvaluatedTeacher = Object.keys(evaluations).some(memberId => {
                 const member = room.players.find(p => p.id === memberId);
@@ -1876,11 +2099,23 @@ io.on('connection', (socket) => {
                     }
                 });
                 
-                // Lưu đánh giá của thầy/cô
+                // Lưu đánh giá của thầy/cô (gộp dồn thay vì ghi đè)
                 if (!room.evaluations.teachers) {
                     room.evaluations.teachers = {};
                 }
-                room.evaluations.teachers[evaluatorId] = evaluations;
+                if (!room.evaluations.teachers[evaluatorId]) {
+                    room.evaluations.teachers[evaluatorId] = {};
+                }
+                // Merge đánh giá mới vào đánh giá cũ
+                console.log(`📝 Merging teacher evaluations from ${evaluatorPlayer.name} (${evaluatorId}):`, evaluations);
+                Object.keys(evaluations || {}).forEach(peerId => {
+                    room.evaluations.teachers[evaluatorId][peerId] = {
+                        ...(room.evaluations.teachers[evaluatorId][peerId] || {}),
+                        ...evaluations[peerId]
+                    };
+                    console.log(`   ✅ Saved evaluation for peer ${peerId}:`, room.evaluations.teachers[evaluatorId][peerId]);
+                });
+                console.log(`📊 Current room.evaluations.teachers:`, JSON.stringify(room.evaluations.teachers, null, 2));
                 
                 // Tính trung bình cộng cho mỗi nhóm được đánh giá
             Object.keys(evaluationScores).forEach(peerId => {
@@ -1922,13 +2157,42 @@ io.on('connection', (socket) => {
                     }
                 });
                 
+                // Thông báo cho host khi có thầy/cô đánh giá xong
+                if (room.host) {
+                    if (evaluatorPlayer) {
+                        io.to(room.host).emit('member-evaluation-submitted', {
+                            evaluatorName: evaluatorPlayer.name,
+                            evaluatedCount: Object.keys(evaluationScores).length,
+                            isTeacher: true
+                        });
+                        console.log(`📢 Thông báo cho host: ${evaluatorPlayer.name} đã đánh giá ${Object.keys(evaluationScores).length} nhóm`);
+                    }
+                }
+                
+                // Broadcast lại danh sách players để cập nhật điểm
+                io.to(roomCode).emit('players-list', { players: getVisiblePlayers(room.players) });
+                
                 // Lưu logs đánh giá thầy/cô
                 const hostPlayer = room.players.find(p => p.isHost);
                 if (hostPlayer) {
+                    // Debug: Kiểm tra room.evaluations.teachers trước khi lưu
+                    console.log(`📋 Before saving logs - room.evaluations.teachers:`, JSON.stringify(room.evaluations.teachers, null, 2));
+                    console.log(`📋 Teacher evaluations count:`, Object.keys(room.evaluations.teachers || {}).length);
+                    
                     saveScoresToFile(hostPlayer.name, roomCode, room.players);
                     saveEvaluationLogs(hostPlayer.name, roomCode, room.evaluations, room.evaluationSetup, room.players);
+                    
+                    // Cập nhật file evaluation-details.json để hiển thị teacher evaluations
+                    if (room.evaluationSetup && room.evaluations && room.players) {
+                        const evaluatedPlayers = getEvaluatedPlayers(room.players);
+                        saveEvaluationDetails(hostPlayer.name, roomCode, room.evaluationSetup, room.evaluations, evaluatedPlayers);
+                        console.log(`💾 Updated evaluation-details.json with teacher evaluations`);
+                    }
                     console.log(`💾 Scores with teacher evaluation saved to file for ${hostPlayer.name}`);
                 }
+                
+                // Kiểm tra xem tất cả thầy/cô đã đánh giá chưa
+                checkEvaluationProgress(room, roomCode);
             } else {
                 // XỬ LÝ ĐÁNH GIÁ CỦA NHÓM - GIỚI HẠN 20 ĐIỂM/NHÓM
                 Object.keys(evaluationScores).forEach(peerId => {
@@ -2080,6 +2344,11 @@ function saveEvaluationDetails(hostName, roomCode, evaluationSetup, evaluations,
             return false;
         }
         
+        // Đảm bảo evaluations.teachers tồn tại (có thể là object rỗng)
+        if (!evaluations.teachers) {
+            evaluations.teachers = {};
+        }
+        
         if (!evaluationSetup || !evaluationSetup.hostCriteria || !evaluationSetup.memberCriteria) {
             console.error('   ❌ Invalid evaluation setup');
             return false;
@@ -2150,6 +2419,42 @@ function saveEvaluationDetails(hostName, roomCode, evaluationSetup, evaluations,
                 });
             });
             
+            // Đánh giá từ thầy/cô
+            const teacherEvaluations = [];
+            if (evaluations.teachers) {
+                Object.keys(evaluations.teachers).forEach(teacherId => {
+                    const teacherEval = evaluations.teachers[teacherId][member.id] || {};
+                    
+                    const teacher = players.find(p => p.id === teacherId);
+                    if (!teacher || !teacher.name.startsWith('Thầy/Cô: ')) {
+                        return;
+                    }
+                    
+                    const teacherDetails = evaluationSetup.memberCriteria.map(criteria => {
+                        const levelId = teacherEval[criteria.id];
+                        const level = evaluationSetup.ratingLevels.find(l => l.id === levelId);
+                        const score = levelId ? (criteria.maxScore / 4) * levelId : 0;
+                        
+                        return {
+                            criteriaId: criteria.id,
+                            criteriaName: criteria.name,
+                            criteriaDescription: criteria.description,
+                            maxScore: criteria.maxScore,
+                            levelId: levelId,
+                            levelName: level?.name || 'Chưa đánh giá',
+                            levelEmoji: level?.emoji || '',
+                            score: score
+                        };
+                    });
+                    
+                    teacherEvaluations.push({
+                        evaluatorId: teacherId,
+                        evaluatorName: teacher.name,
+                        evaluations: teacherDetails
+                    });
+                });
+            }
+            
             // Tính tổng điểm
             const hostTotalScore = hostEvaluationDetails.reduce((sum, detail) => sum + detail.score, 0);
             const peerTotalScores = peerEvaluations.map(peer => 
@@ -2157,6 +2462,13 @@ function saveEvaluationDetails(hostName, roomCode, evaluationSetup, evaluations,
             );
             const peerAverageScore = peerTotalScores.length > 0 
                 ? peerTotalScores.reduce((a, b) => a + b, 0) / peerTotalScores.length 
+                : 0;
+            
+            const teacherTotalScores = teacherEvaluations.map(teacher => 
+                teacher.evaluations.reduce((sum, detail) => sum + detail.score, 0)
+            );
+            const teacherAverageScore = teacherTotalScores.length > 0 
+                ? teacherTotalScores.reduce((a, b) => a + b, 0) / teacherTotalScores.length 
                 : 0;
             
             return {
@@ -2169,10 +2481,13 @@ function saveEvaluationDetails(hostName, roomCode, evaluationSetup, evaluations,
                 },
                 peerEvaluations: peerEvaluations,
                 peerAverageScore: peerAverageScore,
+                teacherEvaluations: teacherEvaluations,
+                teacherAverageScore: teacherAverageScore,
                 summary: {
                     hostScore: hostTotalScore,
                     peerAverageScore: peerAverageScore,
-                    totalEvaluationScore: hostTotalScore + peerAverageScore
+                    teacherAverageScore: teacherAverageScore,
+                    totalEvaluationScore: hostTotalScore + peerAverageScore + teacherAverageScore
                 }
             };
         });
@@ -2181,11 +2496,16 @@ function saveEvaluationDetails(hostName, roomCode, evaluationSetup, evaluations,
         // Tính số người đánh giá thực sự (chỉ tính những người có thể đánh giá, không tính Thầy/Cô)
         const evaluablePlayers = getEvaluablePlayers(players).filter(p => !p.name.startsWith('Thầy/Cô: '));
         const totalEvaluators = evaluablePlayers.length;
+        const teachers = players.filter(p => p.name && p.name.startsWith('Thầy/Cô: '));
+        const totalTeachers = teachers.length;
         const avgHostScore = totalMembers > 0 
             ? memberDetails.reduce((sum, m) => sum + m.hostEvaluation.totalScore, 0) / totalMembers 
             : 0;
         const avgPeerScore = totalMembers > 0 
             ? memberDetails.reduce((sum, m) => sum + m.peerAverageScore, 0) / totalMembers 
+            : 0;
+        const avgTeacherScore = totalMembers > 0 
+            ? memberDetails.reduce((sum, m) => sum + m.teacherAverageScore, 0) / totalMembers 
             : 0;
         
         const evaluationDetails = {
@@ -2201,8 +2521,10 @@ function saveEvaluationDetails(hostName, roomCode, evaluationSetup, evaluations,
             summary: {
                 totalMembers: totalMembers,
                 totalEvaluators: totalEvaluators,
+                totalTeachers: totalTeachers,
                 averageHostScore: avgHostScore,
-                averagePeerScore: avgPeerScore
+                averagePeerScore: avgPeerScore,
+                averageTeacherScore: avgTeacherScore
             }
         };
         

@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lịch sử đánh giá - Quiz Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .info-bar {
+            background: #f8f9fa;
+            padding: 20px 30px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .info-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .info-item .icon {
+            font-size: 1.2em;
+        }
+
+        .info-item .label {
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .info-item .value {
+            color: #007bff;
+            font-weight: 700;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .history-table thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .history-table th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+
+        .history-table td {
+            padding: 15px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .history-table tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        .history-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .group-name {
+            font-weight: 700;
+            color: #212529;
+            font-size: 1.1em;
+        }
+
+        .score-cell {
+            text-align: center;
+            font-weight: 600;
+            color: #28a745;
+        }
+
+        .average-cell {
+            text-align: center;
+        }
+
+        .detail-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .detail-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.4);
+        }
+
+        .detail-btn:active {
+            transform: translateY(0);
+        }
+
+        .detail-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .detail-modal.show {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        .detail-modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            animation: slideUp 0.3s ease;
+            position: relative;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .detail-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .detail-modal-title {
+            font-size: 1.5em;
+            font-weight: 700;
+            color: #212529;
+        }
+
+        .close-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background 0.3s ease;
+        }
+
+        .close-btn:hover {
+            background: #5a6268;
+        }
+
+        .detail-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .detail-item {
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .detail-item-name {
+            font-weight: 600;
+            color: #212529;
+        }
+
+        .detail-item-score {
+            font-weight: 700;
+            color: #28a745;
+            font-size: 1.1em;
+        }
+
+        .detail-summary {
+            margin-top: 20px;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+
+        .back-btn {
+            background: #6c757d;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background 0.3s ease;
+            margin-bottom: 20px;
+        }
+
+        .back-btn:hover {
+            background: #5a6268;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #6c757d;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                border-radius: 10px;
+            }
+            
+            .header {
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .info-bar {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+            
+            .history-table {
+                font-size: 0.9em;
+            }
+            
+            .history-table th,
+            .history-table td {
+                padding: 10px;
+            }
+            
+            .detail-modal-content {
+                padding: 20px;
+                max-width: 95%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Lịch sử đánh giá</h1>
+            <div class="subtitle">Tổng quan kết quả đánh giá các nhóm</div>
+        </div>
+
+        <div class="info-bar" id="infoBar">
+            <div class="info-item">
+                <span class="icon">👑</span>
+                <span class="label">Host:</span>
+                <span class="value" id="hostName">-</span>
+            </div>
+            <div class="info-item">
+                <span class="icon">🏠</span>
+                <span class="label">Phòng:</span>
+                <span class="value" id="roomCode">-</span>
+            </div>
+            <div class="info-item">
+                <span class="icon">📅</span>
+                <span class="label">Thời gian:</span>
+                <span class="value" id="timestamp">-</span>
+            </div>
+        </div>
+
+        <div class="content">
+            <button class="back-btn" onclick="goBack()">← Quay lại</button>
+            
+            <div id="loadingTab" class="loading">
+                <h3>🔄 Đang tải dữ liệu...</h3>
+                <p>Vui lòng chờ trong giây lát</p>
+            </div>
+
+            <div id="errorTab" class="error" style="display: none;">
+                <h3>❌ Lỗi tải dữ liệu</h3>
+                <p id="errorMessage">Không thể tải lịch sử đánh giá</p>
+            </div>
+
+            <div id="historyContent" style="display: none;">
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>Nhóm</th>
+                            <th>Điểm chủ phòng</th>
+                            <th>Trung bình nhóm</th>
+                            <th>Trung bình thầy/cô</th>
+                            <th>Tổng điểm</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        <!-- Sẽ được populate bằng JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal xem chi tiết -->
+    <div class="detail-modal" id="detailModal">
+        <div class="detail-modal-content">
+            <div class="detail-modal-header">
+                <div class="detail-modal-title" id="detailModalTitle">Chi tiết</div>
+                <button class="close-btn" onclick="closeDetailModal()">✕ Đóng</button>
+            </div>
+            <div id="detailModalBody">
+                <!-- Sẽ được populate bằng JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let historyData = null;
+
+        // Lấy tham số từ URL
+        function getUrlParams() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return {
+                hostName: urlParams.get('hostName'),
+                roomCode: urlParams.get('roomCode')
+            };
+        }
+
+        // Load dữ liệu lịch sử
+        async function loadHistory() {
+            const params = getUrlParams();
+            
+            if (!params.hostName || !params.roomCode) {
+                showError('Thiếu thông tin host hoặc mã phòng');
+                return;
+            }
+
+            try {
+                showLoading();
+                
+                const response = await fetch(`/api/evaluation-details/${encodeURIComponent(params.hostName)}/${encodeURIComponent(params.roomCode)}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                historyData = await response.json();
+                populateHistory();
+                
+            } catch (error) {
+                console.error('Error loading history:', error);
+                showError(`Lỗi tải dữ liệu: ${error.message}`);
+            }
+        }
+
+        // Hiển thị loading
+        function showLoading() {
+            document.getElementById('loadingTab').style.display = 'block';
+            document.getElementById('errorTab').style.display = 'none';
+            document.getElementById('historyContent').style.display = 'none';
+        }
+
+        // Hiển thị lỗi
+        function showError(message) {
+            document.getElementById('loadingTab').style.display = 'none';
+            document.getElementById('errorTab').style.display = 'block';
+            document.getElementById('errorMessage').textContent = message;
+            document.getElementById('historyContent').style.display = 'none';
+        }
+
+        // Populate lịch sử
+        function populateHistory() {
+            // Cập nhật info bar
+            document.getElementById('hostName').textContent = historyData.hostName;
+            document.getElementById('roomCode').textContent = historyData.roomCode;
+            document.getElementById('timestamp').textContent = new Date(historyData.timestamp).toLocaleString('vi-VN');
+
+            // Populate bảng
+            const tbody = document.getElementById('historyTableBody');
+            tbody.innerHTML = '';
+
+            if (historyData.summaryTable && historyData.summaryTable.length > 0) {
+                // Sử dụng summaryTable từ evaluation logs
+                historyData.summaryTable.forEach(group => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="group-name">${group.name}</td>
+                        <td class="score-cell">${group.hostScore % 1 === 0 ? group.hostScore.toString() : group.hostScore.toFixed(1)}</td>
+                        <td class="average-cell">
+                            ${group.peerAverage > 0 ? `
+                                <span>${group.peerAverage % 1 === 0 ? group.peerAverage.toString() : group.peerAverage.toFixed(1)}</span>
+                                <button class="detail-btn" onclick="showPeerDetails('${group.name}', ${group.peerAverage})">
+                                    📋 Xem chi tiết
+                                </button>
+                            ` : '<span>0</span>'}
+                        </td>
+                        <td class="average-cell">
+                            ${group.teacherAverage > 0 ? `
+                                <span>${group.teacherAverage % 1 === 0 ? group.teacherAverage.toString() : group.teacherAverage.toFixed(1)}</span>
+                                <button class="detail-btn" onclick="showTeacherDetails('${group.name}', ${group.teacherAverage})">
+                                    📋 Xem chi tiết
+                                </button>
+                            ` : '<span>0</span>'}
+                        </td>
+                        <td class="score-cell">${group.total % 1 === 0 ? group.total.toString() : group.total.toFixed(1)}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } else if (historyData.memberDetails && historyData.memberDetails.length > 0) {
+                // Fallback: Sử dụng memberDetails nếu không có summaryTable
+                historyData.memberDetails.forEach(member => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="group-name">${member.memberName}</td>
+                        <td class="score-cell">${member.hostEvaluation.totalScore % 1 === 0 ? member.hostEvaluation.totalScore.toString() : member.hostEvaluation.totalScore.toFixed(1)}</td>
+                        <td class="average-cell">
+                            ${member.peerAverageScore > 0 ? `
+                                <span>${member.peerAverageScore % 1 === 0 ? member.peerAverageScore.toString() : member.peerAverageScore.toFixed(1)}</span>
+                                <button class="detail-btn" onclick="showPeerDetails('${member.memberName}', ${member.peerAverageScore})">
+                                    📋 Xem chi tiết
+                                </button>
+                            ` : '<span>0</span>'}
+                        </td>
+                        <td class="average-cell">
+                            ${member.teacherAverageScore > 0 ? `
+                                <span>${member.teacherAverageScore % 1 === 0 ? member.teacherAverageScore.toString() : member.teacherAverageScore.toFixed(1)}</span>
+                                <button class="detail-btn" onclick="showTeacherDetails('${member.memberName}', ${member.teacherAverageScore})">
+                                    📋 Xem chi tiết
+                                </button>
+                            ` : '<span>0</span>'}
+                        </td>
+                        <td class="score-cell">${member.finalScore % 1 === 0 ? member.finalScore.toString() : member.finalScore.toFixed(1)}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+
+            // Hiển thị nội dung
+            document.getElementById('loadingTab').style.display = 'none';
+            document.getElementById('errorTab').style.display = 'none';
+            document.getElementById('historyContent').style.display = 'block';
+        }
+
+        // Hiển thị chi tiết đánh giá của các nhóm
+        function showPeerDetails(groupName, average) {
+            const member = historyData.memberDetails.find(m => m.memberName === groupName);
+            if (!member || !member.peerEvaluations || member.peerEvaluations.length === 0) {
+                alert('Không có dữ liệu đánh giá từ các nhóm');
+                return;
+            }
+
+            // Tính điểm từng nhóm
+            const peerScores = member.peerEvaluations.map(peer => {
+                const totalScore = peer.evaluations.reduce((sum, eval) => sum + eval.score, 0);
+                return {
+                    name: peer.evaluatorName,
+                    score: totalScore
+                };
+            });
+
+            // Hiển thị modal
+            document.getElementById('detailModalTitle').textContent = `Chi tiết đánh giá của các nhóm cho ${groupName}`;
+            const modalBody = document.getElementById('detailModalBody');
+            modalBody.innerHTML = `
+                <ul class="detail-list">
+                    ${peerScores.map(peer => `
+                        <li class="detail-item">
+                            <span class="detail-item-name">${peer.name}</span>
+                            <span class="detail-item-score">${peer.score % 1 === 0 ? peer.score.toString() : peer.score.toFixed(1)} điểm</span>
+                        </li>
+                    `).join('')}
+                </ul>
+                <div class="detail-summary">
+                    Trung bình: ${average % 1 === 0 ? average.toString() : average.toFixed(1)} điểm
+                </div>
+            `;
+            document.getElementById('detailModal').classList.add('show');
+        }
+
+        // Hiển thị chi tiết đánh giá của các thầy/cô
+        function showTeacherDetails(groupName, average) {
+            const member = historyData.memberDetails.find(m => m.memberName === groupName);
+            if (!member || !member.teacherEvaluations || member.teacherEvaluations.length === 0) {
+                alert('Không có dữ liệu đánh giá từ các thầy/cô');
+                return;
+            }
+
+            // Tính điểm từng thầy/cô
+            const teacherScores = member.teacherEvaluations.map(teacher => {
+                const totalScore = teacher.evaluations.reduce((sum, eval) => sum + eval.score, 0);
+                return {
+                    name: teacher.evaluatorName,
+                    score: totalScore
+                };
+            });
+
+            // Hiển thị modal
+            document.getElementById('detailModalTitle').textContent = `Chi tiết đánh giá của các thầy/cô cho ${groupName}`;
+            const modalBody = document.getElementById('detailModalBody');
+            modalBody.innerHTML = `
+                <ul class="detail-list">
+                    ${teacherScores.map(teacher => `
+                        <li class="detail-item">
+                            <span class="detail-item-name">${teacher.name}</span>
+                            <span class="detail-item-score">${teacher.score % 1 === 0 ? teacher.score.toString() : teacher.score.toFixed(1)} điểm</span>
+                        </li>
+                    `).join('')}
+                </ul>
+                <div class="detail-summary">
+                    Trung bình: ${average % 1 === 0 ? average.toString() : average.toFixed(1)} điểm
+                </div>
+            `;
+            document.getElementById('detailModal').classList.add('show');
+        }
+
+        // Đóng modal
+        function closeDetailModal() {
+            document.getElementById('detailModal').classList.remove('show');
+        }
+
+        // Đóng modal khi click bên ngoài
+        document.getElementById('detailModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeDetailModal();
+            }
+        });
+
+        // Quay lại trang trước
+        function goBack() {
+            window.history.back();
+        }
+
+        // Khởi tạo
+        document.addEventListener('DOMContentLoaded', function() {
+            loadHistory();
+        });
+    </script>
+</body>
+</html>
+
