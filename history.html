@@ -479,6 +479,8 @@
                 // Sử dụng summaryTable từ evaluation logs
                 historyData.summaryTable.forEach(group => {
                     const row = document.createElement('tr');
+                    // Tính lại tổng điểm từ các thành phần (không bao gồm quiz score)
+                    const total = (group.hostScore || 0) + (group.peerAverage || 0) + (group.teacherAverage || 0);
                     row.innerHTML = `
                         <td class="group-name">${group.name}</td>
                         <td class="score-cell">${group.hostScore % 1 === 0 ? group.hostScore.toString() : group.hostScore.toFixed(1)}</td>
@@ -498,7 +500,7 @@
                                 </button>
                             ` : '<span>0</span>'}
                         </td>
-                        <td class="score-cell">${group.total % 1 === 0 ? group.total.toString() : group.total.toFixed(1)}</td>
+                        <td class="score-cell">${total % 1 === 0 ? total.toString() : total.toFixed(1)}</td>
                     `;
                     tbody.appendChild(row);
                 });
@@ -506,26 +508,31 @@
                 // Fallback: Sử dụng memberDetails nếu không có summaryTable
                 historyData.memberDetails.forEach(member => {
                     const row = document.createElement('tr');
+                    // Tính lại tổng điểm từ các thành phần (không bao gồm quiz score)
+                    const hostScore = member.hostEvaluation?.totalScore || 0;
+                    const peerAvg = member.peerAverageScore || 0;
+                    const teacherAvg = member.teacherAverageScore || 0;
+                    const total = hostScore + peerAvg + teacherAvg;
                     row.innerHTML = `
                         <td class="group-name">${member.memberName}</td>
-                        <td class="score-cell">${member.hostEvaluation.totalScore % 1 === 0 ? member.hostEvaluation.totalScore.toString() : member.hostEvaluation.totalScore.toFixed(1)}</td>
+                        <td class="score-cell">${hostScore % 1 === 0 ? hostScore.toString() : hostScore.toFixed(1)}</td>
                         <td class="average-cell">
-                            ${member.peerAverageScore > 0 ? `
-                                <span>${member.peerAverageScore % 1 === 0 ? member.peerAverageScore.toString() : member.peerAverageScore.toFixed(1)}</span>
-                                <button class="detail-btn" onclick="showPeerDetails('${member.memberName}', ${member.peerAverageScore})">
+                            ${peerAvg > 0 ? `
+                                <span>${peerAvg % 1 === 0 ? peerAvg.toString() : peerAvg.toFixed(1)}</span>
+                                <button class="detail-btn" onclick="showPeerDetails('${member.memberName}', ${peerAvg})">
                                     📋 Xem chi tiết
                                 </button>
                             ` : '<span>0</span>'}
                         </td>
                         <td class="average-cell">
-                            ${member.teacherAverageScore > 0 ? `
-                                <span>${member.teacherAverageScore % 1 === 0 ? member.teacherAverageScore.toString() : member.teacherAverageScore.toFixed(1)}</span>
-                                <button class="detail-btn" onclick="showTeacherDetails('${member.memberName}', ${member.teacherAverageScore})">
+                            ${teacherAvg > 0 ? `
+                                <span>${teacherAvg % 1 === 0 ? teacherAvg.toString() : teacherAvg.toFixed(1)}</span>
+                                <button class="detail-btn" onclick="showTeacherDetails('${member.memberName}', ${teacherAvg})">
                                     📋 Xem chi tiết
                                 </button>
                             ` : '<span>0</span>'}
                         </td>
-                        <td class="score-cell">${member.finalScore % 1 === 0 ? member.finalScore.toString() : member.finalScore.toFixed(1)}</td>
+                        <td class="score-cell">${total % 1 === 0 ? total.toString() : total.toFixed(1)}</td>
                     `;
                     tbody.appendChild(row);
                 });
