@@ -815,7 +815,17 @@ app.get('*', (req, res, next) => {
         const pathName = req.path || '';
         // Skip API and known prefixes
         if (knownPrefixes.some(p => pathName.startsWith(p))) return next();
-        // If client requests HTML, serve SPA entry
+        
+        // Check if it's an actual HTML file (e.g., history.html, evaluation-details.html, quiz-details.html)
+        if (pathName.endsWith('.html')) {
+            const filePath = path.join(__dirname, pathName);
+            if (fs.existsSync(filePath)) {
+                // Serve the actual HTML file
+                return res.sendFile(filePath);
+            }
+        }
+        
+        // If client requests HTML and it's not an actual file, serve SPA entry
         const accepts = req.headers['accept'] || '';
         if (accepts.includes('text/html')) {
             return res.sendFile(path.join(__dirname, 'index.html'));

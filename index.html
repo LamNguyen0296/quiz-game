@@ -986,6 +986,7 @@
                 <button class="btn" onclick="openQuizBuilder()" id="editQuizBtn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">✏️ Sửa Quiz</button>
                 <button class="btn" onclick="openEvaluation()" id="evaluationBtn" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">⭐ Đánh giá</button>
                 <button class="btn" onclick="openEvaluationDetails()" id="evaluationDetailsBtn" style="background: linear-gradient(135deg, #36d1dc 0%, #5b86e5 100%);">📑 Xem chi tiết đánh giá</button>
+                <button class="btn" onclick="openHistory()" id="historyBtn" style="background: linear-gradient(135deg, #f093fb 0%, #4facfe 100%);">📊 Xem lịch sử</button>
                 <button class="btn" onclick="openResetGroupModal()" id="resetGroupBtn" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);">🗑️ Xóa điểm nhóm</button>
                 <button class="btn btn-danger" onclick="showFinalResults()" id="finalBtn" style="margin-left:8px;">🏁 Kết thúc</button>
             </div>
@@ -2145,6 +2146,22 @@
             } catch (e) {
                 console.error('openQuizDetails error:', e);
                 alert('Không mở được chi tiết quiz');
+            }
+        }
+
+        // Mở trang lịch sử đánh giá
+        function openHistory() {
+            try {
+                const host = hostName || (isHost ? currentPlayer : (document.getElementById('lobbyHostName')?.textContent || ''));
+                if (!host || !currentRoom) {
+                    alert('Thiếu thông tin host hoặc mã phòng');
+                    return;
+                }
+                const url = `/history.html?hostName=${encodeURIComponent(host)}&roomCode=${encodeURIComponent(currentRoom)}`;
+                window.open(url, '_blank');
+            } catch (e) {
+                console.error('openHistory error:', e);
+                alert('Không mở được trang lịch sử');
             }
         }
 
